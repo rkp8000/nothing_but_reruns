@@ -66,5 +66,7 @@ class SoftmaxWTAWithLingeringHyperexcitability(object):
 
             # decrement hyperexcitability counters
             xc[xc > 0] -= 1
+            # turn on hyperexcitability of last active node
+            xc[active_node] = self.t_x
 
         return np.array(rs)
