@@ -15,7 +15,7 @@ def set_fontsize(ax, fontsize):
             txt.set_fontsize(fontsize)
 
 
-def fancy_raster(ax, spikes, drives, spike_marker_size=10, drive_marker_base_size=100):
+def fancy_raster(ax, spikes, drives, spike_marker_size=20, drive_marker_base_size=100):
     """
     Plot raster plots where each spike is a small dark solid circle and each drive is a surrounding hollow brighter
     circle with a radius that increases with drive strength.
