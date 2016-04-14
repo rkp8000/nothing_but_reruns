@@ -31,13 +31,13 @@ class SoftmaxWTAWithLingeringHyperexcitability(object):
 
         self.n_nodes = w.shape[0]
 
-    def run(self, r_0, drives, xc_0):
+    def run(self, r_0, xc_0, drives):
         """
         Run the network under a set of external drives.
 
         :param r_0: initial activation state
+        :param xc_0: initial hyperexcitability counter
         :param drives: external drives at each time point
-        :param x_0: initial hyperexcitability counter
         :return: network activation at each time point
         """
 
