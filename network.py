@@ -3,6 +3,17 @@ from copy import copy
 import numpy as np
 
 
+def _calculate_softmax_probability(inputs):
+    """
+    Calculate softmax probabilities from inputs.
+    :param inputs: input vector
+    :return: vector of normalized probabilities
+    """
+
+    prob = np.exp(inputs)
+    return prob / prob.sum()
+
+
 class SoftmaxWTAWithLingeringHyperexcitability(object):
     """
     Most basic network model with activation-dependent excitability changes.
@@ -31,6 +42,20 @@ class SoftmaxWTAWithLingeringHyperexcitability(object):
 
         self.n_nodes = w.shape[0]
 
+    def calculate_inputs(self, r, xc, drive):
+        """
+        Calculate vector of inputs to network given previous activation state, hyperexcitability counter, and drive.
+        :param r: activation state at last time step
+        :param xc: hyperexcitability counter
+        :param drive: external drive
+        :return: vector of inputs
+        """
+
+        upstream = self.w.dot(r)
+        excitability = (xc > 0).astype(float)
+
+        return self.g_w * upstream + self.g_x * excitability + self.g_d * drive
+
     def run(self, r_0, xc_0, drives):
         """
         Run the network under a set of external drives.
@@ -49,17 +74,12 @@ class SoftmaxWTAWithLingeringHyperexcitability(object):
         for drive in drives:
 
             # calculate inputs and softmax probabilities
-            upstream = self.w.dot(r)
-            excitability = (xc > 0).astype(float)
-
-            all_input = self.g_w * upstream + self.g_x * excitability + self.g_d * drive
-
-            prob = np.exp(all_input)
-            prob /= prob.sum()
+            inputs = self.calculate_inputs(r, xc, drive)
+            prob = _calculate_softmax_probability(inputs)
 
             # select active node
             active_node = np.random.choice(range(self.n_nodes), p=prob)
-            r = np.zeros((self.n_nodes))
+            r = np.zeros((self.n_nodes,))
             r[active_node] = 1.
 
             rs.append(r)
@@ -88,20 +108,15 @@ class SoftmaxWTAWithLingeringHyperexcitability(object):
         for candidate_node, drive in zip(seq, drives):
 
             # calculate inputs and softmax probabilities
-            upstream = self.w.dot(r)
-            excitability = (xc > 0).astype(float)
-
-            all_input = self.g_w * upstream + self.g_x * excitability + self.g_d * drive
-
-            prob = np.exp(all_input)
-            prob /= prob.sum()
+            inputs = self.calculate_inputs(r, xc, drive)
+            prob = _calculate_softmax_probability(inputs)
 
             # get probability of candidate node activating
             p_seq *= prob[candidate_node]
 
             # update activations and hyperexcitability counters as if the candidate node had become active,
             # so that the next probability can be calculated conditioned on previous part of the sequence
-            r = np.zeros((self.n_nodes))
+            r = np.zeros((self.n_nodes,))
             r[candidate_node] = 1.
 
             # decrement hyperexcitability counters
