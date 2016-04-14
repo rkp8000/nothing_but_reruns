@@ -7,7 +7,7 @@ from network import SoftmaxWTAWithLingeringHyperexcitability as network
 from plot import fancy_raster, set_fontsize
 
 
-def feed_forward_replay_example(
+def replay_example(
         SEED, GRID_SHAPE, LATERAL_SPREAD, G_W, G_X, G_D, T_X,
         DRIVEN_NODES, DRIVE_AMPLITUDE,
         AX_SIZE, FONT_SIZE):
