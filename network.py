@@ -70,3 +70,43 @@ class SoftmaxWTAWithLingeringHyperexcitability(object):
             xc[active_node] = self.t_x
 
         return np.array(rs)
+
+    def sequence_probability(self, seq, r_0, xc_0, drives):
+        """
+        Calculate the probability of the network producing a sequence given an initial state and
+        set of drives.
+        :param seq: sequence to be produced (1-D array)
+        :param r_0, xc_0, drives: see method "run"
+        :return: probability of network producing sequence
+        """
+
+        p_seq = 1
+
+        r = copy(r_0)
+        xc = copy(xc_0)
+
+        for candidate_node, drive in zip(seq, drives):
+
+            # calculate inputs and softmax probabilities
+            upstream = self.w.dot(r)
+            excitability = (xc > 0).astype(float)
+
+            all_input = self.g_w * upstream + self.g_x * excitability + self.g_d * drive
+
+            prob = np.exp(all_input)
+            prob /= prob.sum()
+
+            # get probability of candidate node activating
+            p_seq *= prob[candidate_node]
+
+            # update activations and hyperexcitability counters as if the candidate node had become active,
+            # so that the next probability can be calculated conditioned on previous part of the sequence
+            r = np.zeros((self.n_nodes))
+            r[candidate_node] = 1.
+
+            # decrement hyperexcitability counters
+            xc[xc > 0] -= 1
+            # turn on hyperexcitability of last active node
+            xc[candidate_node] = self.t_x
+
+        return p_seq
