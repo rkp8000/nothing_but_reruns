@@ -3,6 +3,7 @@ import numpy as np
 import unittest
 
 import connectivity
+import network
 
 
 class ConnectivityTestCase(unittest.TestCase):
@@ -62,6 +63,46 @@ class ConnectivityTestCase(unittest.TestCase):
 
         w = connectivity.feed_forward_grid(shape=shape, spread=spread)
         np.testing.assert_array_equal(w, w_correct)
+
+
+class NetworkProbabilityCalculationTestCase(unittest.TestCase):
+
+    def test_sequence_probability_is_calculated_correctly_in_softmax_wta_lingering_hyperexc_network(self):
+
+        # NETWORK WITH SIMPLE WEIGHT MATRIX
+
+        w = np.array([
+            [0, 0, 0, 2, 0],
+            [2, 0, 0, 2, 0],
+            [0, 1, 0, 0, 0],
+            [0, 0, 0, 0, 1],
+            [4, 3, 2, 0, 0],
+        ])
+
+        g_w = 1.5
+        g_x = 2.2
+        g_d = 0.8
+        t_x = 100
+
+        drives = np.array([
+            [2,   0, 0,   0, 0],
+            [0, 1.5, 0,   0, 0],
+            [0,   0, 0, 1.8, 0],
+        ])
+
+        seq = np.array([0, 1, 3])
+        r_0 = np.array([0, 0, 0, 0, 0])
+        xc_0 = np.array([0, 20, 0, 0, 0])
+
+        p_seq_correct = \
+            0.29173159541542848 * \
+            0.59219297641971802 * \
+            0.036145519643313952
+
+        ntwk = network.SoftmaxWTAWithLingeringHyperexcitability(w, g_w, g_x, g_d, t_x)
+        p_seq = ntwk.sequence_probability(seq, r_0, xc_0, drives)
+
+        self.assertAlmostEqual(p_seq, p_seq_correct)
 
 
 if __name__ == '__main__':
