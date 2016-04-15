@@ -7,6 +7,13 @@ from network import SoftmaxWTAWithLingeringHyperexcitability as network
 from plot import fancy_raster, set_fontsize
 
 
+def make_feed_forward_grid_weights(shape, spread):
+
+    w = feed_forward_grid(shape=shape, spread=1)
+    w += feed_forward_grid(shape=shape, spread=spread)
+
+    return w
+
 def replay_example(
         SEED, GRID_SHAPE, LATERAL_SPREAD, G_W, G_X, G_D, T_X,
         DRIVEN_NODES, DRIVE_AMPLITUDE,
@@ -19,7 +26,7 @@ def replay_example(
 
     # make network
 
-    w = feed_forward_grid(shape=GRID_SHAPE, spread=1) + feed_forward_grid(shape=GRID_SHAPE, spread=LATERAL_SPREAD)
+    w = make_feed_forward_grid_weights(GRID_SHAPE, LATERAL_SPREAD)
     ntwk = network(w=w, g_w=G_W, g_x=G_X, g_d=G_D, t_x=T_X)
 
     # make drive sequence
@@ -89,7 +96,7 @@ def replay_probability_calculation(
 
     # make weight matrix
 
-    w = feed_forward_grid(shape=GRID_SHAPE, spread=1) + feed_forward_grid(shape=GRID_SHAPE, spread=LATERAL_SPREAD)
+    w = make_feed_forward_grid_weights(GRID_SHAPE, LATERAL_SPREAD)
     n_nodes = w.shape[0]
 
     # loop over all sequences
