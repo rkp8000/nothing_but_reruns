@@ -8,6 +8,13 @@ from plot import fancy_raster, set_fontsize
 
 
 def make_feed_forward_grid_weights(shape, spread):
+    """
+    Create a weight matrix corresponding to a network of feed-forward layers, with lateral
+    spread from each node over nodes in the successive layer.
+    :param shape: grid shape of the network (n_rows, n_cols)
+    :param spread: size of lateral spread (1 = no lateral spread)
+    :return: weight matrix (rows are targs, cols are srcs)
+    """
 
     w = feed_forward_grid(shape=shape, spread=1)
     w += feed_forward_grid(shape=shape, spread=spread)
@@ -19,6 +26,10 @@ def replay_example(
         SEED, GRID_SHAPE, LATERAL_SPREAD, G_W, G_X, G_D, T_X,
         DRIVEN_NODES, DRIVE_AMPLITUDE,
         AX_SIZE, FONT_SIZE):
+    """
+    Show a few examples of how a basic network with activation-dependent lingering hyperexcitability
+    with a feed forward architecture can replay certain sequences.
+    """
 
     # RUN SIMULATION
 
@@ -89,6 +100,10 @@ def replay_probability_calculation(
         G_BARS, G_W_STARS, G_X_STARS, G_D_STARS, T_X,
         TEST_SEQUENCES, DRIVEN_NODES, DRIVE_AMPLITUDE,
         AX_SIZE, FONT_SIZE):
+    """
+    Calculate the probability of a basic network with activation-dependent lingering hyperexcitability
+    with a feed forward architecture replaying a sequence as a function of different gain parameters.
+    """
 
     # RUN SIMULATIONS
 
@@ -192,6 +207,10 @@ def nonreplayable_sequence_example(
         G_BAR_EXAMPLE, G_BARS, G_W_STAR, G_X_STAR, G_D_STAR, T_X,
         DRIVEN_NODES, DRIVE_AMPLITUDE,
         FIG_SIZE, FONT_SIZE):
+    """
+    Demonstrate the previous network's inability to replay certain sequences by showing an example and by
+    calculating the probability of replay as a function of gain.
+    """
 
     # RUN SIMULATION
 
