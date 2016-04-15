@@ -48,6 +48,7 @@ def replay_example(
         all_drives.append(drives)
         all_rs.append(rs)
 
+
     # MAKE PLOTS
 
     fig, axs = plt.subplots(
@@ -67,5 +68,112 @@ def replay_example(
 
         if ax_ctr == n_trials - 1:
             ax.set_xlabel('Time step')
+
+        set_fontsize(ax, FONT_SIZE)
+
+
+def replay_probability_calculation(
+        SEED, GRID_SHAPE, LATERAL_SPREAD,
+        G_BARS, G_W_STARS, G_X_STARS, G_D_STARS, T_X,
+        TEST_SEQUENCES, DRIVEN_NODES, DRIVE_AMPLITUDE,
+        AX_SIZE, FONT_SIZE):
+
+    # RUN SIMULATIONS
+
+    np.random.seed(SEED)
+
+    # do some preliminary computations
+
+    n_seqs = len(TEST_SEQUENCES)
+    run_times = [len(seq) for seq in TEST_SEQUENCES]
+    test_sequence_flats = [np.ravel_multi_index(np.transpose(seq), GRID_SHAPE) for seq in TEST_SEQUENCES]
+    driven_node_flats = [np.ravel_multi_index(node, GRID_SHAPE) for node in DRIVEN_NODES]
+    fixed_params_all = zip(G_W_STARS, G_X_STARS, G_D_STARS)
+
+    # make weight matrix
+
+    w = feed_forward_grid(shape=GRID_SHAPE, spread=1) + feed_forward_grid(shape=GRID_SHAPE, spread=LATERAL_SPREAD)
+    n_nodes = w.shape[0]
+
+    # loop over all sequences
+
+    p_seqs_alls = []
+
+    for test_sequence_flat, run_time, driven_node_flat in zip(test_sequence_flats, run_times, driven_node_flats):
+
+        # set up initial state, initial hyperexcitability counter, and drives
+
+        r_0 = np.zeros((n_nodes,))
+
+        xc_0 = np.zeros((n_nodes,))
+        hyperexcitable_nodes_flat = test_sequence_flat
+        xc_0[hyperexcitable_nodes_flat] = np.arange(T_X - run_time, T_X) + 1
+
+        drives = np.zeros((run_time, n_nodes))
+
+        drives[0, driven_node_flat] = DRIVE_AMPLITUDE
+
+        # loop through all "fixed parameter sets"
+
+        p_seqs_all = []
+
+        for g_w_star, g_x_star, g_d_star in fixed_params_all:
+
+            p_seqs = []
+
+            for g_bar in G_BARS:
+
+                g_w = g_bar * g_w_star
+                g_x = g_bar * g_x_star
+                g_d = g_bar * g_d_star
+
+                ntwk = network(w=w, g_w=g_w, g_x=g_x, g_d=g_d, t_x=T_X)
+
+                # calculate probability of network following sequence
+
+                p_seqs.append(ntwk.sequence_probability(test_sequence_flat, r_0, xc_0, drives))
+
+            p_seqs_all.append(p_seqs)
+
+        p_seqs_alls.append(p_seqs_all)
+
+
+    # MAKE PLOTS
+
+    fig_size = (AX_SIZE[0], n_seqs * AX_SIZE[1])
+
+    fig, axs = plt.subplots(
+        n_seqs, 1, figsize=fig_size, facecolor='white',
+        sharex=True, sharey=True, tight_layout=True)
+
+    if n_seqs == 1:
+        axs = [axs]
+
+    labels = []
+
+    for ax_ctr, (ax, p_seqs_all) in enumerate(zip(axs, p_seqs_alls)):
+
+        for fixed_params, p_seqs in zip(fixed_params_all, p_seqs_all):
+
+            ax.plot(G_BARS, p_seqs, lw=2)
+
+            if ax_ctr == 0:
+
+                labels.append('gw* = {}, gx* = {}, gd* = {}'.format(*fixed_params))
+
+    for ax_ctr, ax in enumerate(axs):
+
+        ax.set_title('sequence {} (length {})'.format(ax_ctr + 1, run_times[ax_ctr]))
+        if ax_ctr == 0:
+
+            axs[0].legend(labels, loc='best')
+
+            axs[0].set_ylim(0, 1)
+
+        if ax_ctr == n_seqs - 1:
+
+            ax.set_xlabel('gbar')
+
+        ax.set_ylabel('replay \n probability')
 
         set_fontsize(ax, FONT_SIZE)
