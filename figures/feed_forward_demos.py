@@ -33,12 +33,11 @@ def replay_example(
         n_nodes = w.shape[0]
 
         drives = np.zeros((run_time, n_nodes), dtype=float)
-        driven_nodes_flat = np.ravel_multi_index(np.transpose(driven_nodes_one_trial), GRID_SHAPE)
 
-        for t, node in enumerate(driven_nodes_flat):
+        for t, node in enumerate(driven_nodes_one_trial):
             drives[t, node] = DRIVE_AMPLITUDE
 
-        drives[len(driven_nodes_one_trial), driven_nodes_flat[0]] = DRIVE_AMPLITUDE
+        drives[len(driven_nodes_one_trial), driven_nodes_one_trial[0]] = DRIVE_AMPLITUDE
 
         # run network
         r_0 = np.zeros((n_nodes,))
@@ -86,8 +85,6 @@ def replay_probability_calculation(
 
     n_seqs = len(TEST_SEQUENCES)
     run_times = [len(seq) for seq in TEST_SEQUENCES]
-    test_sequence_flats = [np.ravel_multi_index(np.transpose(seq), GRID_SHAPE) for seq in TEST_SEQUENCES]
-    driven_node_flats = [np.ravel_multi_index(node, GRID_SHAPE) for node in DRIVEN_NODES]
     fixed_params_all = zip(G_W_STARS, G_X_STARS, G_D_STARS)
 
     # make weight matrix
@@ -99,19 +96,18 @@ def replay_probability_calculation(
 
     p_seqs_alls = []
 
-    for test_sequence_flat, run_time, driven_node_flat in zip(test_sequence_flats, run_times, driven_node_flats):
+    for test_sequence, run_time, driven_node in zip(TEST_SEQUENCES, run_times, DRIVEN_NODES):
 
         # set up initial state, initial hyperexcitability counter, and drives
 
         r_0 = np.zeros((n_nodes,))
 
         xc_0 = np.zeros((n_nodes,))
-        hyperexcitable_nodes_flat = test_sequence_flat
-        xc_0[hyperexcitable_nodes_flat] = np.arange(T_X - run_time, T_X) + 1
+        xc_0[test_sequence] = np.arange(T_X - run_time, T_X) + 1
 
         drives = np.zeros((run_time, n_nodes))
 
-        drives[0, driven_node_flat] = DRIVE_AMPLITUDE
+        drives[0, driven_node] = DRIVE_AMPLITUDE
 
         # loop through all "fixed parameter sets"
 
@@ -131,7 +127,7 @@ def replay_probability_calculation(
 
                 # calculate probability of network following sequence
 
-                p_seqs.append(ntwk.sequence_probability(test_sequence_flat, r_0, xc_0, drives))
+                p_seqs.append(ntwk.sequence_probability(test_sequence, r_0, xc_0, drives))
 
             p_seqs_all.append(p_seqs)
 
