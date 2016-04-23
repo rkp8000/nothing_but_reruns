@@ -1,8 +1,10 @@
 from __future__ import division, print_function
+import networkx as nx
 import numpy as np
 import unittest
 
 import connectivity
+import metrics
 import network
 
 
@@ -105,5 +107,48 @@ class NetworkProbabilityCalculationTestCase(unittest.TestCase):
         self.assertAlmostEqual(p_seq, p_seq_correct)
 
 
+class MetricsTestCase(unittest.TestCase):
+
+    def test_paths_are_correctly_found_in_example_network(self):
+
+        a = np.array([
+            [0, 0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 0, 0],
+            [1, 0, 0, 0, 0, 0],
+            [0, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1],
+            [0, 0, 1, 1, 0, 0]
+        ])
+
+        paths_3_correct = {
+            (0, 2, 5),
+            (1, 3, 5),
+            (2, 5, 0),
+            (2, 5, 4),
+            (3, 5, 0),
+            (3, 5, 4),
+            (5, 0, 2),
+        }
+
+        paths_4_correct = {
+            (0, 2, 5, 0),
+            (0, 2, 5, 4),
+            (1, 3, 5, 0),
+            (1, 3, 5, 4),
+            (2, 5, 0, 2),
+            (3, 5, 0, 2),
+            (5, 0, 2, 5),
+        }
+
+        g = nx.from_numpy_matrix(a.T, create_using=nx.DiGraph())
+
+        paths_3 = set(metrics.paths_of_length(g, 3))
+        paths_4 = set(metrics.paths_of_length(g, 4))
+
+        self.assertEqual(paths_3, paths_3_correct)
+        self.assertEqual(paths_4, paths_4_correct)
+
+
 if __name__ == '__main__':
+
     unittest.main()
