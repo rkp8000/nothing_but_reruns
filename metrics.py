@@ -66,6 +66,7 @@ def replayable_paths(g, length, progress_ctr=0):
     """
 
     paths_all = paths_of_length(g, length)
+    a = nx.adjacency_matrix(g).T
 
     paths_replayable = []
     paths_non_replayable = []
