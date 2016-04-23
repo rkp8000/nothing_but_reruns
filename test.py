@@ -148,6 +148,37 @@ class MetricsTestCase(unittest.TestCase):
         self.assertEqual(paths_3, paths_3_correct)
         self.assertEqual(paths_4, paths_4_correct)
 
+    def test_replayability_is_calculated_correctly_for_examples(self):
+
+        a = np.array([
+            [0, 0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 0, 0],
+            [1, 0, 0, 0, 0, 0],
+            [0, 1, 0, 0, 1, 0],
+            [0, 0, 1, 0, 0, 1],
+            [0, 0, 1, 1, 1, 0]
+        ])
+
+        replayable_paths = [
+            (0, 2, 4, 3),
+            (0, 2, 5, 0),
+            (1, 3, 5, 0),
+        ]
+
+        non_replayable_paths = [
+            (2, 4, 5, 0),
+            (2, 5, 4, 3),
+            (2, 4, 3, 5),
+        ]
+
+        for path in replayable_paths:
+
+            self.assertTrue(metrics.path_is_replayable(path, a))
+
+        for path in non_replayable_paths:
+
+            self.assertFalse(metrics.path_is_replayable(path, a))
+
 
 if __name__ == '__main__':
 
