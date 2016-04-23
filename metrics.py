@@ -8,7 +8,7 @@ import numpy as np
 
 def paths_of_length(g, length):
     """
-    Return list of all paths of a given length in a graph.
+    Return list of all simple paths of a given length in a graph.
     :param g: networkx graph
     :param length: how long paths should be (number of nodes including start and end)
     :return: List of paths
