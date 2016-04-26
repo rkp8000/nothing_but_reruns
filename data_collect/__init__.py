@@ -38,6 +38,33 @@ def create_database(name, superuser='postgres', password=''):
     conn.close()
 
 
+def destroy_database(name, superuser='postgres', password=''):
+    """
+    Destroy a database
+    :param name: name of database to destroy
+    :param superuser: superuser (default is 'postgres')
+    :param password: password for superuser (default is '')
+    """
+
+    db_uri = 'postgres://{}@{}/postgres'.format(superuser, password)
+
+    engine = create_engine(db_uri)
+
+    # connect
+
+    conn = engine.connect()
+
+    # finish initial transaction so we can make a database
+
+    conn.execute('commit')
+
+    # make the database
+
+    conn.execute('drop database {}'.format(name))
+
+    conn.close()
+
+
 def modify_database(db_change_log_filename, func, params, func_log_file=''):
     """
     Call a function that modifies the database, making sure to log the fact that this function was called
