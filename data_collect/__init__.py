@@ -1,6 +1,9 @@
 from __future__ import division
 from datetime import datetime
 import inspect
+import os
+
+from git import Repo
 from sqlalchemy import create_engine
 from sqlalchemy.exc import ProgrammingError
 
@@ -46,7 +49,7 @@ def modify_database(db_change_log_filename, func, params, func_log_file=''):
     :param log_file: log file function should write to as it proceeds
     """
 
-    if raw_input('Did you remember to commit your changes? [y/n]') not in ('y', 'Y'):
+    if raw_input('Did you remember to commit your latest changes? [y/n]') not in ('y', 'Y'):
 
         raise Exception('Please commit your changes before writing to the database!')
 
@@ -58,6 +61,12 @@ def modify_database(db_change_log_filename, func, params, func_log_file=''):
 
         datetime_string = datetime.now().strftime(DATETIME_FORMAT)
         f.write('DATETIME: {}\n'.format(datetime_string))
+
+        # current git commit
+
+        repo = Repo(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        latest_commit = repo.iter_commits('master', max_count=1).next()
+        f.write('LATEST COMMIT ON "master": "{}"\n'.format(latest_commit))
 
         # function called
 
@@ -72,7 +81,7 @@ def modify_database(db_change_log_filename, func, params, func_log_file=''):
 
         # logging file
 
-        f.write('LOG FILE: {}\n\n'.format(func_log_file))
+        f.write('LOG FILE: "{}"\n\n'.format(func_log_file))
 
     func(**params)
 
