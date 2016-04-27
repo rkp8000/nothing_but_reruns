@@ -149,7 +149,7 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path='')
     return 'Database modified.'
 
 
-def start_test_logging(test_log_filename):
+def start_test_logging(test_log_filename, test_func_name):
     """
     Do all the preliminary stuff to start logging to the test log file.
     :param test_log_filename: name of file to write to
@@ -165,4 +165,20 @@ def start_test_logging(test_log_filename):
 
     logging.getLogger("sqlalchemy.engine.base.Engine").setLevel(logging.ERROR)
 
-    logging.info('Beginning test...')
+    logging.info('Beginning test of function: "{}".'.format(test_func_name))
+
+
+def start_database_modification_test(func, test_database_name, test_log_filename):
+    """
+    Start a database modification test.
+    :param func: function that will modify the database
+    :param test_database_name: name to give to test database
+    :param test_log_filename: name of log file for tests
+    :return: test engine, principal engine
+    """
+
+    start_test_logging(test_log_filename, func.__name__)
+
+    test_engine, engine = create_test_database_and_engine(test_database_name)
+
+    return test_engine, engine
