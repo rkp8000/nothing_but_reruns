@@ -43,7 +43,7 @@ def create_database(name, engine):
     """
     Create a new database.
 
-    :param name: name of database
+    :param name: name of new database
     :param engine: database engine
     """
 
@@ -96,6 +96,7 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path='')
 
         repo = Repo(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         latest_commit = repo.iter_commits('master', max_count=1).next()
+
         f.write('LATEST COMMIT ON "master": "{}"\n'.format(latest_commit))
 
         # function called
@@ -113,17 +114,20 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path='')
 
         f.write('LOG FILE: "{}"\n'.format(func_log_file_path))
 
-        # datetime
+        # start datetime
 
         datetime_start_string = datetime.now().strftime(DATETIME_FORMAT)
+
         f.write('FUNCTION CALL START DATETIME: {}\n'.format(datetime_start_string))
 
     func(session=session, log_file_path=log_file_path, **params)
 
     with open(db_change_log_filename, 'a') as f:
 
-        # datetime
+        # end datetime
+
         datetime_end_string = datetime.now().strftime(DATETIME_FORMAT)
-        f.write('FUNCTION CALL END DATETIME: {}\n'.format(datetime_end_string')
+
+        f.write('FUNCTION CALL END DATETIME: {}\n'.format(datetime_end_string))
 
     return 'Database modified.'
