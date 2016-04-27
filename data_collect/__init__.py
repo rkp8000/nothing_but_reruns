@@ -2,6 +2,7 @@ from __future__ import division
 from datetime import datetime
 from getpass import getpass
 import inspect
+import logging
 import os
 
 from git import Repo
@@ -59,6 +60,24 @@ def create_database(name, engine):
     # log that database was created
 
     conn.close()
+
+
+def create_test_database_and_engine(test_database_name):
+
+    # create root database engine
+
+    connection_url = build_connection_url_from_user_input()
+    engine = create_engine(connection_url)
+
+    # create testing database and engine
+
+    create_database(test_database_name, engine)
+
+    test_connection_url = '/'.join(connection_url.split('/')[:-1] + [test_database_name])
+
+    test_engine = create_engine(test_connection_url)
+
+    return test_engine, engine
 
 
 def modify_database(db_change_log_filename, func, params, func_log_file_path=''):
@@ -128,3 +147,22 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path='')
         f.write('FUNCTION CALL END DATETIME: {}\n'.format(datetime_end_string))
 
     return 'Database modified.'
+
+
+def start_test_logging(test_log_filename):
+    """
+    Do all the preliminary stuff to start logging to the test log file.
+    :param test_log_filename: name of file to write to
+    """
+
+    reload(logging)
+
+    logging.basicConfig(
+        filename=test_log_filename,
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+    logging.getLogger("sqlalchemy.engine.base.Engine").setLevel(logging.ERROR)
+
+    logging.info('Beginning test...')
