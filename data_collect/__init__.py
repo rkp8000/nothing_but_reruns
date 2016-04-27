@@ -13,19 +13,16 @@ from _models import Base
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S.%f'
 
 
-def create_engine_from_user_input():
+def build_connection_url_from_user_input():
     """
-    Create an engine for connecting to a database. User will be prompted for connection details.
-    :return: engine
+    :return: connection url
     """
 
     user = raw_input('user:')
     password = getpass('password:')
     database = raw_input('database:')
 
-    url = 'postgres://{}:{}@/{}'.format(user, password, database)
-
-    return create_engine(url)
+    return 'postgres://{}:{}@/{}'.format(user, password, database)
 
 
 def create_session(engine):
@@ -81,7 +78,7 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path='')
 
     # create database session
 
-    engine = create_engine_from_user_input()
+    engine = create_engine(build_connection_url_from_user_input())
     session = create_session(engine)
 
     # create all tables defined in _models.py
@@ -120,7 +117,7 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path='')
 
         f.write('FUNCTION CALL START DATETIME: {}\n'.format(datetime_start_string))
 
-    func(session=session, log_file_path=log_file_path, **params)
+    func(session=session, **params)
 
     with open(db_change_log_filename, 'a') as f:
 
