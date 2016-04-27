@@ -1,33 +1,57 @@
 from __future__ import division
 from datetime import datetime
+from getpass import getpass
 import inspect
 import os
 
 from git import Repo
 from sqlalchemy import create_engine
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.orm import sessionmaker
+
+from _models import Base
 
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S.%f'
 
 
-def create_database(name, superuser='postgres', password=''):
+def create_engine_from_user_input():
+    """
+    Create an engine for connecting to a database. User will be prompted for connection details.
+    :return: engine
+    """
+
+    user = raw_input('user:')
+    password = getpass('password:')
+    database = raw_input('database:')
+
+    url = 'postgres://{}:{}@/{}'.format(user, password, database)
+
+    return create_engine(url)
+
+
+def create_session(engine):
+    """
+    Start a session for interacting with the database.
+    :param engine: database engine
+    :return: session instance
+    """
+
+    engine.connect()
+    return sessionmaker(bind=engine)()
+
+
+def create_database(name, engine):
     """
     Create a new database.
 
     :param name: name of database
-    :param superuser: superuser (default is 'postgres')
-    :param password: password for superuser (default is '')
+    :param engine: database engine
     """
-
-    db_uri = 'postgres://{}@{}/postgres'.format(superuser, password)
-
-    engine = create_engine(db_uri)
 
     # connect
 
     conn = engine.connect()
 
-    # finish initial transaction so we can make a database
+    # commit initial transaction so we can make a database
 
     conn.execute('commit')
 
@@ -35,10 +59,12 @@ def create_database(name, superuser='postgres', password=''):
 
     conn.execute('create database {}'.format(name))
 
+    # log that database was created
+
     conn.close()
 
 
-def modify_database(db_change_log_filename, func, params, func_log_file=''):
+def modify_database(db_change_log_filename, func, params, func_log_file_path=''):
     """
     Call a function that modifies the database, making sure to log the fact that this function was called
     at this commit.
@@ -53,14 +79,18 @@ def modify_database(db_change_log_filename, func, params, func_log_file=''):
 
         raise Exception('Please commit your changes before writing to the database!')
 
+    # create database session
+
+    engine = create_engine_from_user_input()
+    session = create_session(engine)
+
+    # create all tables defined in _models.py
+
+    Base.metadata.create_all(engine)
+
     # append information about database-modifying function call to db_change_log
 
     with open(db_change_log_filename, 'a') as f:
-
-        # datetime
-
-        datetime_string = datetime.now().strftime(DATETIME_FORMAT)
-        f.write('DATETIME: {}\n'.format(datetime_string))
 
         # current git commit
 
@@ -81,8 +111,19 @@ def modify_database(db_change_log_filename, func, params, func_log_file=''):
 
         # logging file
 
-        f.write('LOG FILE: "{}"\n\n'.format(func_log_file))
+        f.write('LOG FILE: "{}"\n'.format(func_log_file_path))
 
-    func(**params)
+        # datetime
+
+        datetime_start_string = datetime.now().strftime(DATETIME_FORMAT)
+        f.write('FUNCTION CALL START DATETIME: {}\n'.format(datetime_start_string))
+
+    func(session=session, log_file_path=log_file_path, **params)
+
+    with open(db_change_log_filename, 'a') as f:
+
+        # datetime
+        datetime_end_string = datetime.now().strftime(DATETIME_FORMAT)
+        f.write('FUNCTION CALL END DATETIME: {}\n'.format(datetime_end_string')
 
     return 'Database modified.'
