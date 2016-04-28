@@ -19,3 +19,5 @@ class ReplayCapacityNetwork(Base):
     sequence_lengths = Column(ARRAY(Integer))
     n_sequencess_replayable = Column(ARRAY(Integer))
     n_sequencess_non_replayable = Column(ARRAY(Integer))
+
+    notes = Column(JSONB)
