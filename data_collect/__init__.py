@@ -97,6 +97,11 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path, is
 
         raise Exception('Please commit your changes before writing to the database!')
 
+    # create database session
+
+    engine = create_engine(build_connection_url_from_user_input())
+    session = create_session(engine)
+
     # create directory of log file if it doesn't exist
 
     if not os.path.exists(os.path.dirname(func_log_file_path)):
@@ -112,11 +117,6 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path, is
     logging.getLogger("sqlalchemy.engine.base.Engine").setLevel(logging.WARNING)
 
     logging.info('Function "{}" beginning.'.format(func.__name__))
-
-    # create database session
-
-    engine = create_engine(build_connection_url_from_user_input())
-    session = create_session(engine)
 
     # create all tables defined in _models.py
 
@@ -140,6 +140,7 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path, is
         # whether current function is correction
 
         f.write('IS CORRECTION: {}\n'.format(is_correction))
+
         # current git commit
 
         repo = Repo(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
