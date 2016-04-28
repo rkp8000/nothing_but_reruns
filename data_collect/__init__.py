@@ -80,7 +80,7 @@ def create_test_database_and_engine(test_database_name):
     return test_engine, engine
 
 
-def modify_database(db_change_log_filename, func, params, func_log_file_path=''):
+def modify_database(db_change_log_filename, func, params, func_log_file_path, is_correction):
     """
     Call a function that modifies the database, making sure to log the fact that this function was called
     at this commit.
@@ -88,12 +88,30 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path='')
     :param db_change_log_filename: filename of log of all function calls modifying database
     :param fun: function that modifies database
     :param params: dictionary of parameters to pass to that function
-    :param log_file: log file function should write to as it proceeds
+    :param func_log_file_path: log file function should write to as it proceeds
+    :param is_correction: set to True if function is being run to repair damage done by another function
+        having halted midway through its execution, False otherwise (usually False)
     """
 
     if raw_input('Did you remember to commit your latest changes? [y/n]') not in ('y', 'Y'):
 
         raise Exception('Please commit your changes before writing to the database!')
+
+    # create directory of log file if it doesn't exist
+
+    if not os.path.exists(os.path.dirname(func_log_file_path)):
+        os.makedirs(os.path.dirname(func_log_file_path))
+
+    reload(logging)
+
+    logging.basicConfig(
+        filename=func_log_file_path,
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    logging.getLogger("sqlalchemy.engine.base.Engine").setLevel(logging.WARNING)
+
+    logging.info('Function "{}" beginning.'.format(func.__name__))
 
     # create database session
 
@@ -108,23 +126,26 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path='')
 
     with open(db_change_log_filename, 'a') as f:
 
+        # function called
+
+        func_name = func.__name__
+        module_name = inspect.getmodule(func).__name__
+
+        f.write('FUNCTION: "{}" from module "{}"\n'.format(func_name, module_name))
+
+        # parameters passed
+
+        f.write('PARAMETERS: {}\n'.format(params))
+
+        # whether current function is correction
+
+        f.write('IS CORRECTION: {}\n'.format(is_correction))
         # current git commit
 
         repo = Repo(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         latest_commit = repo.iter_commits('master', max_count=1).next()
 
         f.write('LATEST COMMIT ON "master": "{}"\n'.format(latest_commit))
-
-        # function called
-
-        func_name = func.__name__
-        module_name = inspect.getmodule(func).__name__
-
-        f.write('FUNCTION CALLED: "{}" from module "{}"\n'.format(func_name, module_name))
-
-        # parameters passed
-
-        f.write('PARAMETERS: {}\n'.format(params))
 
         # logging file
 
@@ -134,19 +155,21 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path='')
 
         datetime_start_string = datetime.now().strftime(DATETIME_FORMAT)
 
-        f.write('FUNCTION CALL START DATETIME: {}\n'.format(datetime_start_string))
+        f.write('FUNCTION START DATETIME: {}\n'.format(datetime_start_string))
+
+    # run actual function
 
     func(session=session, **params)
 
-    with open(db_change_log_filename, 'a') as f:
+    # write end datetime into log
 
-        # end datetime
+    with open(db_change_log_filename, 'a') as f:
 
         datetime_end_string = datetime.now().strftime(DATETIME_FORMAT)
 
-        f.write('FUNCTION CALL END DATETIME: {}\n'.format(datetime_end_string))
+        f.write('FUNCTION END DATETIME: {}\n\n'.format(datetime_end_string))
 
-    return 'Database modified.'
+    logging.info('Function "{}" completed.'.format(func.__name__))
 
 
 def start_test_logging(test_log_filename, test_func_name):
@@ -160,10 +183,9 @@ def start_test_logging(test_log_filename, test_func_name):
     logging.basicConfig(
         filename=test_log_filename,
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-    logging.getLogger("sqlalchemy.engine.base.Engine").setLevel(logging.ERROR)
+    logging.getLogger("sqlalchemy.engine.base.Engine").setLevel(logging.WARNING)
 
     logging.info('Beginning test of function: "{}".'.format(test_func_name))
 
