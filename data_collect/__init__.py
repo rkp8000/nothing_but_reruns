@@ -4,6 +4,7 @@ from getpass import getpass
 import inspect
 import logging
 import os
+import threading
 
 from git import Repo
 from sqlalchemy import create_engine
@@ -62,7 +63,7 @@ def create_database(name, engine):
     conn.close()
 
 
-def create_test_database_and_engine(test_database_name):
+def create_test_database_and_engine():
 
     # create root database engine
 
@@ -71,13 +72,30 @@ def create_test_database_and_engine(test_database_name):
 
     # create testing database and engine
 
+    test_database_name = connection_url.split('/')[-1] + '_test'
+
     create_database(test_database_name, engine)
 
-    test_connection_url = '/'.join(connection_url.split('/')[:-1] + [test_database_name])
+    test_connection_url = connection_url + '_test'
 
     test_engine = create_engine(test_connection_url)
 
     return test_engine, engine
+
+
+def _modify_database(func, session, params, db_change_log_filename):
+
+    func(session=session, **params)
+
+    # write end datetime into log
+
+    with open(db_change_log_filename, 'a') as f:
+
+        datetime_end_string = datetime.now().strftime(DATETIME_FORMAT)
+
+        f.write('FUNCTION END DATETIME: {}\n\n'.format(datetime_end_string))
+
+    logging.info('Function "{}" completed.\n\n'.format(func.__name__))
 
 
 def modify_database(db_change_log_filename, func, params, func_log_file_path, is_correction):
@@ -115,6 +133,7 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path, is
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     logging.getLogger("sqlalchemy.engine.base.Engine").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.pool.QueuePool").setLevel(logging.WARNING)
 
     logging.info('Function "{}" beginning.'.format(func.__name__))
 
@@ -158,19 +177,18 @@ def modify_database(db_change_log_filename, func, params, func_log_file_path, is
 
         f.write('FUNCTION START DATETIME: {}\n'.format(datetime_start_string))
 
-    # run actual function
+    # run function in thread
 
-    func(session=session, **params)
+    thread = threading.Thread(
+        target=_modify_database,
+        kwargs={
+            'func': func,
+            'session': session,
+            'params': params,
+            'db_change_log_filename': db_change_log_filename
+        })
 
-    # write end datetime into log
-
-    with open(db_change_log_filename, 'a') as f:
-
-        datetime_end_string = datetime.now().strftime(DATETIME_FORMAT)
-
-        f.write('FUNCTION END DATETIME: {}\n\n'.format(datetime_end_string))
-
-    logging.info('Function "{}" completed.'.format(func.__name__))
+    thread.start()
 
 
 def start_test_logging(test_log_filename, test_func_name):
@@ -187,21 +205,21 @@ def start_test_logging(test_log_filename, test_func_name):
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     logging.getLogger("sqlalchemy.engine.base.Engine").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.pool.QueuePool").setLevel(logging.WARNING)
 
-    logging.info('Beginning test of function: "{}".'.format(test_func_name))
+    logging.info('BEGINNING TEST OF FUNCTION: "{}".\n'.format(test_func_name))
 
 
-def start_database_modification_test(func, test_database_name, test_log_filename):
+def start_database_modification_test(func, test_log_filename):
     """
     Start a database modification test.
     :param func: function that will modify the database
-    :param test_database_name: name to give to test database
     :param test_log_filename: name of log file for tests
     :return: test engine, principal engine
     """
 
     start_test_logging(test_log_filename, func.__name__)
 
-    test_engine, engine = create_test_database_and_engine(test_database_name)
+    test_engine, engine = create_test_database_and_engine()
 
     return test_engine, engine
