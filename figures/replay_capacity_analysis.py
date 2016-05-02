@@ -32,6 +32,7 @@ def er_capacity(
 
         p_rrs_normed.append(p_rr_normed)
 
+
     # make plots
 
     fig, axs = plt.subplots(1, 2, figsize=FIG_SIZE, tight_layout=True)
@@ -39,7 +40,6 @@ def er_capacity(
     for l, p_rr_normed, color in zip(LS, p_rrs_normed, COLORS):
 
         axs[0].plot(PS, p_rr_normed, lw=2, color=color)
-
 
     axs[0].set_xlim(0, 1)
 
