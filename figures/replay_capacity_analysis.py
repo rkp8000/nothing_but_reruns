@@ -44,7 +44,7 @@ def er_capacity(
     axs[0].set_xlim(0, 1)
 
     axs[0].set_xlabel('p')
-    axs[0].set_ylabel('p(random path is RR)\n(normalized to max)')
+    axs[0].set_ylabel('p(random simple path is RR)\n(normalized to max)')
     axs[0].set_title('Erdos-Renyi')
 
     axs[0].legend(LS)
