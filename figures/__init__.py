@@ -6,3 +6,5 @@ from feed_forward_demos import replay_probability_calculation as feed_forward_re
 from feed_forward_demos import nonreplayable_sequence_example as feed_forward_nonreplayable_sequence_example
 
 from replay_capacity_analysis import er_capacity as er_replay_capacity
+
+from stimulus_decodability_analysis import single_time_point_decoding_vs_weight_matrix as single_time_point_decoding_vs_weight_matrix
