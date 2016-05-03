@@ -4,7 +4,7 @@ import numpy as np
 
 from connectivity import feed_forward_grid
 from network import SoftmaxWTAWithLingeringHyperexcitability as network
-from plot import fancy_raster, set_fontsize
+from plot import fancy_raster, fancy_raster_stars_above, set_fontsize
 
 
 def make_feed_forward_grid_weights(shape, spread):
@@ -24,8 +24,8 @@ def make_feed_forward_grid_weights(shape, spread):
 
 def replay_example(
         SEED, GRID_SHAPE, LATERAL_SPREAD, G_W, G_X, G_D, T_X,
-        DRIVEN_NODES, DRIVE_AMPLITUDE,
-        AX_SIZE, FONT_SIZE):
+        DRIVEN_NODES, DRIVE_AMPLITUDE, SPONTANEOUS_RUN_TIME,
+        AX_SIZE, Y_LIM, FONT_SIZE):
     """
     Show a few examples of how a basic network with activation-dependent lingering hyperexcitability
     with a feed forward architecture can replay certain sequences.
@@ -41,6 +41,8 @@ def replay_example(
     w = make_feed_forward_grid_weights(GRID_SHAPE, LATERAL_SPREAD)
     ntwk = network(w=w, g_w=G_W, g_x=G_X, g_d=G_D, t_x=T_X)
 
+    n_nodes = w.shape[0]
+
     # loop over trials
 
     all_drives = []
@@ -49,7 +51,6 @@ def replay_example(
     for driven_nodes_one_trial in DRIVEN_NODES:
 
         run_time = 2 * len(driven_nodes_one_trial)
-        n_nodes = w.shape[0]
 
         # make drive sequence
 
@@ -69,28 +70,77 @@ def replay_example(
         all_drives.append(drives)
         all_rs.append(rs)
 
+    # make spontaneous example
+
+    drives_spontaneous = np.zeros((SPONTANEOUS_RUN_TIME, n_nodes), dtype=float)
+    nonzero_drives_spontaneous = all_drives[0][:len(driven_nodes_one_trial)]
+
+    drives_spontaneous[:len(nonzero_drives_spontaneous)] = nonzero_drives_spontaneous
+
+    # run network
+
+    r_0_spontaneous = np.zeros((n_nodes,))
+    xc_0_spontaneous = np.zeros((n_nodes,))
+    rs_spontaneous = ntwk.run(r_0=r_0_spontaneous, drives=drives_spontaneous, xc_0=xc_0_spontaneous)
+
 
     # MAKE PLOTS
 
-    fig, axs = plt.subplots(
-        n_trials, 1, figsize=(AX_SIZE[0], AX_SIZE[1] * n_trials), facecolor='white',
-        sharex=True, sharey=True, tight_layout=True)
+    fig = plt.figure(
+        figsize=(AX_SIZE[0] * (n_trials + 2), AX_SIZE[1]), facecolor='white',
+        tight_layout=True)
+    axs = []
 
-    if n_trials == 1:
+    axs.append(fig.add_subplot(1, 4, 1))
+    axs.append(fig.add_subplot(1, 4, 2))
 
-        axs = [axs]
+    axs.append(fig.add_subplot(1, 2, 2))
 
-    for ax, drives, rs in zip(axs, all_drives, all_rs):
+    for ax, drives, rs in zip(axs[:-1], all_drives, all_rs):
 
-        fancy_raster(ax, rs, drives)
+        fancy_raster_stars_above(ax, rs, drives, spike_marker_size=40, star_marker_size=80, rise=8)
+
+        x_fill = np.linspace(-1, np.sum(drives > 0) - 1.5, 3, endpoint=True)
+        y_fill_lower = -1 * np.ones(x_fill.shape)
+        y_fill_upper = n_nodes * np.ones(x_fill.shape)
+
+        ax.fill_between(x_fill, y_fill_lower, y_fill_upper, color='gray', alpha=0.2)
+
+    fancy_raster_stars_above(
+        axs[-1], rs_spontaneous, drives_spontaneous,
+        spike_marker_size=40, star_marker_size=80, rise=8)
+
+    x_fill = np.linspace(-1, np.sum(all_drives[0] > 0) - 1.5, 3, endpoint=True)
+    y_fill_lower = -1 * np.ones(x_fill.shape)
+    y_fill_upper = n_nodes * np.ones(x_fill.shape)
+
+    axs[-1].fill_between(x_fill, y_fill_lower, y_fill_upper, color='gray', alpha=0.2)
 
     for ax_ctr, ax in enumerate(axs):
 
-        ax.set_ylim(-1, n_nodes)
-        ax.set_ylabel('ensemble')
+        if ax_ctr < len(axs) - 1:
 
-        if ax_ctr == n_trials - 1:
-            ax.set_xlabel('time step')
+            ax.set_xlim(-1, 2 * len(DRIVEN_NODES[0]))
+
+        else:
+
+            ax.set_xlim(-1, SPONTANEOUS_RUN_TIME)
+
+        ax.set_ylim(Y_LIM)
+
+        ax.set_xlabel('time step')
+
+        if ax_ctr == 0:
+
+            ax.set_ylabel('ensemble')
+
+        if ax_ctr < len(axs) - 1:
+
+            ax.set_title('Triggered replay {}'.format(ax_ctr + 1))
+
+        else:
+
+            ax.set_title('Spontaneous replay')
 
         set_fontsize(ax, FONT_SIZE)
 
