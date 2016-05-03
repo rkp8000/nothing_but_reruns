@@ -55,6 +55,15 @@ def single_time_point_decoding_vs_weight_matrix(
 
     assert np.sum(ntwk_matched.w != ntwk_control.w) == np.sum(ntwk_matched.w)
 
+    # build half-matched weight matrix
+    w_half_matched = w_matched.copy()
+    w_half_matched[np.random.rand(*w_half_matched.shape) < 0.5] = 0
+
+    ntwk_half_matched = network.SoftmaxWTAWithLingeringHyperexcitability(
+        w_half_matched, g_w=G_W, g_x=0, g_d=None, t_x=0)
+
+    assert 0 < np.sum(ntwk_half_matched.w) < 0.75 * np.sum(ntwk_matched.w)
+
     # build negative control network with random connections independent of drive transitions
 
     w_random = connectivity.er_directed(N_NODES, P_CONNECT)
@@ -66,6 +75,7 @@ def single_time_point_decoding_vs_weight_matrix(
 
     decoding_accuracy_matched = []
     decoding_accuracy_control = []
+    decoding_accuracy_half_matched = []
     decoding_accuracy_random = []
 
     r_0 = np.zeros((N_NODES,))
@@ -77,34 +87,41 @@ def single_time_point_decoding_vs_weight_matrix(
 
         ntwk_matched.g_d = g_d
         ntwk_control.g_d = g_d
+        ntwk_half_matched.g_d = g_d
         ntwk_random.g_d = g_d
 
         # present drives to networks
 
         rs_seq_matched = ntwk_matched.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
         rs_seq_control = ntwk_control.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
+        rs_seq_half_matched = ntwk_half_matched.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
         rs_seq_random = ntwk_random.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
 
         decoding_results_matched = (rs_seq_matched == drive_seq)
         decoding_results_control = (rs_seq_control == drive_seq)
+        decoding_results_half_matched = (rs_seq_half_matched == drive_seq)
         decoding_results_random = (rs_seq_random == drive_seq)
 
         decoding_accuracy_matched.append(np.mean(decoding_results_matched))
         decoding_accuracy_control.append(np.mean(decoding_results_control))
+        decoding_accuracy_half_matched.append(np.mean(decoding_results_half_matched))
         decoding_accuracy_random.append(np.mean(decoding_results_random))
 
     # run example
 
     ntwk_matched.g_d = G_D_EXAMPLE
     ntwk_control.g_d = G_D_EXAMPLE
+    ntwk_half_matched.g_d = G_D_EXAMPLE
     ntwk_random.g_d = G_D_EXAMPLE
 
     rs_seq_matched = ntwk_matched.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
     rs_seq_control = ntwk_control.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
+    rs_seq_half_matched = ntwk_half_matched.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
     rs_seq_random = ntwk_random.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
 
     decoding_results_matched = (rs_seq_matched == drive_seq)
     decoding_results_control = (rs_seq_control == drive_seq)
+    decoding_results_half_matched = (rs_seq_half_matched == drive_seq)
     decoding_results_random = (rs_seq_random == drive_seq)
 
     # plot things
@@ -113,6 +130,7 @@ def single_time_point_decoding_vs_weight_matrix(
 
     axs[0].plot(G_DS, decoding_accuracy_matched, c='k', lw=2)
     axs[0].plot(G_DS, decoding_accuracy_control, c='b', lw=2)
+    axs[0].plot(G_DS, decoding_accuracy_half_matched, c='g', lw=2)
     axs[0].plot(G_DS, decoding_accuracy_random, c='r', lw=2)
 
     axs[0].set_xlim(G_DS[0], G_DS[-1])
@@ -123,11 +141,12 @@ def single_time_point_decoding_vs_weight_matrix(
 
     axs[0].set_title('g_w = {}'.format(G_W))
 
-    axs[0].legend(['matched', 'zero', 'random'], loc='best')
+    axs[0].legend(['matched', 'zero', 'half-matched', 'random'], loc='best')
 
     axs[1].plot(decoding_results_matched, c='k', lw=2)
     axs[1].plot(decoding_results_control + .01, c='b', lw=2)
-    axs[1].plot(decoding_results_random + .02, c='r', lw=1)
+    axs[1].plot(decoding_results_half_matched + .02, c='g', lw=2)
+    axs[1].plot(decoding_results_random + .03, c='r', lw=1)
 
     axs[1].set_xlim(0, 100)
     axs[1].set_ylim(0, 1.1)
