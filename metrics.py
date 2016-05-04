@@ -4,6 +4,7 @@ Code for various network metrics.
 from __future__ import division, print_function
 import networkx as nx
 import numpy as np
+from scipy import stats
 
 
 def paths_of_length(g, length):
@@ -111,3 +112,35 @@ def softmax_prob_from_weights(weights, gain):
     p0 = np.real(p0_unnormed / p0_unnormed.sum())
 
     return p, p0
+
+
+def transition_dkl(t_0, t_1, base=2):
+    """
+    Calculate the DKL between two transition matrices (rows are "to", cols are "from").
+
+    Since transition matrices give conditional distributions, we first calculate the joint transition
+    distributions and then take the DKL between those two distributions.
+
+    :param t_0: first transition matrix
+    :param t_1: second transition matrix.
+    :param base: base to calculate DKL in (default = 2)
+    :return: DKL averaged over cols
+    """
+
+    t_joints = []
+
+    for t_mat in [t_0, t_1]:
+
+        # get stationary distribution
+
+        evals, evecs = np.linalg.eig(t_mat)
+        idxs_sorted = np.real(evals).argsort()[::-1]
+
+        # normalize
+
+        p_0_unnormed = evecs[:, idxs_sorted[0]]
+        p_0 = np.real(p_0_unnormed / p_0_unnormed.sum())
+
+        t_joints.append(t_mat * np.tile(p_0[:, None], (1, t_mat.shape[1])))
+
+    return stats.entropy(t_joints[0].flatten(), t_joints[1].flatten(), base=base)
