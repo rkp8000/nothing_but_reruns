@@ -1,6 +1,7 @@
 from __future__ import division, print_function
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy import stats
 
 import connectivity
 import metrics
@@ -248,4 +249,138 @@ def single_time_point_decoding_vs_nary_weight_matrix(
     axs[1].set_title('example decoder time course')
 
     for ax in axs:
+        set_fontsize(ax, FONT_SIZE)
+
+
+def spontaneous_vs_driven_dkl(
+        SEED,
+        N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS, G_W, G_DS, N_TIME_POINTS,
+        FIG_SIZE, COLORS, FONT_SIZE):
+    """
+    Compare the DKL of states vs and state transitions between spontaneous and driven activities
+    for different weight matrices.
+    """
+
+    keys = ['matched', 'zero', 'half_matched', 'random', 'full']
+
+    np.random.seed(SEED)
+
+    # build original weight matrix and convert to drive transition probability distribution
+
+    ws = {}
+
+    ws['matched'] = connectivity.er_directed_nary(N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS)
+    p_tr_drive, p_0_drive = metrics.softmax_prob_from_weights(ws['matched'], G_W)
+
+    # build the other weight matrices
+
+    ws['zero'] = np.zeros((N_NODES, N_NODES), dtype=float)
+
+    ws['half_matched'] = ws['matched'].copy()
+    ws['half_matched'][np.random.rand(*ws['half_matched'].shape) < 0.5] = 0
+
+    ws['random'] = connectivity.er_directed_nary(N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS)
+
+    ws['full'] = connectivity.er_directed_nary(N_NODES, 1, STRENGTHS, P_STRENGTHS)
+
+    # make networks
+
+    ntwks = {}
+
+    for key, w in ws.items():
+
+        ntwks[key] = network.SoftmaxWTAWithLingeringHyperexcitability(
+            w, g_w=G_W, g_x=0, g_d=None, t_x=0)
+
+    # perform a few checks
+
+    assert np.sum(np.abs(ws['zero'])) == 0
+
+    for strength in STRENGTHS:
+
+        assert np.sum(ws['matched'] == strength) > 0
+
+    # calculate spontaneous state and transition probabilities matrices
+
+    states_spontaneous = {}
+    transitions_spontaneous = {}
+
+    for key, ntwk in ntwks.items():
+
+        transitions_spontaneous[key], states_spontaneous[key] = \
+            metrics.softmax_prob_from_weights(ntwk.w, G_W)
+
+    # create sample drive sequence
+
+    drives = np.zeros((N_TIME_POINTS, N_NODES))
+
+    drive_first = np.random.choice(np.arange(N_NODES), p=p_0_drive.flatten())
+    drives[0, drive_first] = 1
+
+    for ctr in range(N_TIME_POINTS - 1):
+
+        drive_last = np.argmax(drives[ctr])
+        drive_next = np.random.choice(range(N_NODES), p=p_tr_drive[:, drive_last])
+
+        drives[ctr + 1, drive_next] = 1
+
+    # run simulations and calculate DKLs
+
+    state_dkls = {key: [] for key in keys}
+    transition_dkls = {key: [] for key in keys}
+
+    r_0 = np.zeros((N_NODES,))
+    xc_0 = np.zeros((N_NODES,))
+
+    for g_d in G_DS:
+
+        for key, ntwk in ntwks.items():
+
+            ntwk.g_d = g_d
+
+            rs_seq = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
+
+            # calculate state probabilities from sequence
+            states_driven = metrics.occurrence_count(rs_seq, states=np.arange(N_NODES))
+            states_driven /= states_driven.sum()
+
+            state_dkls[key].append(
+                stats.entropy(states_driven, states_spontaneous[key]))
+
+            # calculate transition probabilities from sequence
+
+            transitions_driven = metrics.transition_count(rs_seq, states=np.arange(N_NODES))
+            transitions_driven /= transitions_driven.sum()
+
+            transition_dkls[key].append(
+                metrics.transition_dkl(transitions_driven, transitions_spontaneous[key]))
+
+
+    # make plots
+
+    fig, axs = plt.subplots(1, 2, figsize=FIG_SIZE, facecolor='white', tight_layout=True)
+
+    for key, color in zip(keys, COLORS):
+
+        axs[0].plot(G_DS, state_dkls[key], color=color, lw=2)
+        axs[1].plot(G_DS, transition_dkls[key], color=color, lw=2)
+
+    for ctr, ax in enumerate(axs):
+
+        if ctr == 0:
+
+            ax.legend(keys, loc='best')
+
+        ax.set_xlabel('g_d')
+
+        if ctr == 0:
+
+            ax.set_ylabel('DKL')
+
+            ax.set_title('Spontaneous vs. driven\nstate probabilities')
+
+        else:
+
+            ax.set_title('Spontaneous vs. driven\ntransition probabilities')
+
         set_fontsize(ax, FONT_SIZE)
