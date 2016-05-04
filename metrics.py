@@ -88,3 +88,26 @@ def replayable_paths(g, length, progress_ctr=0):
             paths_non_replayable.append(path)
 
     return paths_replayable, paths_non_replayable
+
+
+def softmax_prob_from_weights(weights, gain):
+    """
+    Convert a weight matrix to a probabilistic transition matrix using a softmax rule.
+    :param weights: weight matrix (rows are targs, cols are srcs)
+    :param gain: scaling factor in softmax function (higher gain -> lower entropy)
+    :return: transition matrix (rows are targs, cols are srcs), initial probabilities
+    """
+
+    # calculate transition probabilities p
+    p_unnormed = np.exp(gain * weights)
+    p = p_unnormed / p_unnormed.sum(0)
+
+    # define p0 to be stationary distribution, given by principal eigenvector
+    evals, evecs = np.linalg.eig(p)
+    idxs_sorted = np.real(evals).argsort()[::-1]
+
+    # normalize
+    p0_unnormed = evecs[:, idxs_sorted[0]]
+    p0 = np.real(p0_unnormed / p0_unnormed.sum())
+
+    return p, p0
