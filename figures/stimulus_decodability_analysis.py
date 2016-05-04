@@ -375,12 +375,12 @@ def spontaneous_vs_driven_dkl(
 
         if ctr == 0:
 
-            ax.set_ylabel('DKL')
+            ax.set_ylabel('spontaneous vs. driven DKL')
 
-            ax.set_title('Spontaneous vs. driven\nstate probabilities')
+            ax.set_title('state probabilities')
 
         else:
 
-            ax.set_title('Spontaneous vs. driven\ntransition probabilities')
+            ax.set_title('transition probabilities')
 
         set_fontsize(ax, FONT_SIZE)
