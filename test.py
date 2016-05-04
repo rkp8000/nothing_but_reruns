@@ -1,6 +1,7 @@
 from __future__ import division, print_function
 import networkx as nx
 import numpy as np
+from scipy import stats
 import unittest
 
 import connectivity
@@ -178,6 +179,48 @@ class MetricsTestCase(unittest.TestCase):
         for path in non_replayable_paths:
 
             self.assertFalse(metrics.path_is_replayable(path, a))
+
+    def test_transition_matrix_DKL_gives_correct_example_results(self):
+
+        # define transition matrices and stationary distributions
+
+        x = np.array([
+            [0.1, 0.5],
+            [0.9, 0.5],
+        ])
+
+        x_0 = np.array([0.48564293, 0.87415728])
+
+        y = np.array([
+            [0.2, 0.3],
+            [0.8, 0.7],
+        ])
+
+        y_0 = np.array([0.35112344, 0.93632918])
+
+        # create joint matrices
+
+        x_joint = x.copy()
+        x_joint[:, 0] *= x_0
+        x_joint[:, 1] *= x_0
+
+        y_joint = y.copy()
+        y_joint[:, 0] *= y_0
+        y_joint[:, 1] *= y_0
+
+        # make sure we're calculating the correct dkl between x and y
+
+        dkl_correct = stats.entropy(x_joint.flatten(), y_joint.flatten(), base=2)
+
+        dkl = metrics.transition_dkl(x, y, base=2)
+
+        self.assertAlmostEqual(dkl, dkl_correct)
+
+        # make sure that dkl between a distribution and itself is 0
+
+        dkl_zero = metrics.transition_dkl(x_joint, x_joint, base=2)
+
+        self.assertAlmostEqual(dkl_zero, 0)
 
 
 if __name__ == '__main__':
