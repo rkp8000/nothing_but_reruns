@@ -114,6 +114,26 @@ def softmax_prob_from_weights(weights, gain):
     return p, p0
 
 
+def transition_count(seq, states):
+    """
+    Count how many of each type of transition occur in a sequence.
+
+    :param seq: discrete sequence
+    :param states: set of states
+    :return: transition count matrix (rows are "to", cols are "from")
+    """
+
+    transitions = np.zeros((len(states), len(states)), dtype=float)
+
+    states_dict = {state: ctr for ctr, state in enumerate(states)}
+
+    for el_to, el_from in zip(seq[1:], seq[:-1]):
+
+        transitions[states_dict[el_to], states_dict[el_from]] += 1
+
+    return transitions
+
+
 def transition_dkl(t_0, t_1, base=2):
     """
     Calculate the DKL between two transition matrices (rows are "to", cols are "from").
