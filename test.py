@@ -180,9 +180,23 @@ class MetricsTestCase(unittest.TestCase):
 
             self.assertFalse(metrics.path_is_replayable(path, a))
 
+    def test_state_count_gives_correct_example_results(self):
+
+        seq = [0, 0.5, 0.6, 0, 5, 0.5, 0, 0.6, 0.5, 0.6, 0.6, 8]
+
+        states = [0, 0.5, 0.6, 5, 8]
+
+        counts_correct = np.array([3, 3, 4, 1, 1], dtype=float)
+
+        counts = metrics.occurrence_count(seq, states)
+
+        np.testing.assert_array_almost_equal(counts, counts_correct)
+
     def test_transition_count_gives_correct_example_results(self):
 
         seq = [0, 1, 3, 2, 4, 3, 1, 2, 0, 3, 0, 2, 0, 4, 1, 2, 1, 2, 1, 1]
+
+        states = np.arange(5)
 
         transitions_correct = np.array([
             [0, 0, 2, 1, 0],
@@ -191,8 +205,6 @@ class MetricsTestCase(unittest.TestCase):
             [1, 1, 0, 0, 1],
             [1, 0, 1, 0, 0],
         ], dtype=float)
-
-        states = np.arange(5)
 
         transitions = metrics.transition_count(seq, states)
 
