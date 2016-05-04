@@ -114,6 +114,25 @@ def softmax_prob_from_weights(weights, gain):
     return p, p0
 
 
+def occurrence_count(seq, states):
+    """
+    Count how many times each state occurs in a sequence.
+    :param seq: discrete sequence
+    :param states: set of states
+    :return: array of counts (same length as states)
+    """
+
+    counts = np.zeros((len(states),), dtype=float)
+
+    states_dict = {state: ctr for ctr, state in enumerate(states)}
+
+    for el in seq:
+
+        counts[states_dict[el]] += 1
+
+    return counts
+
+
 def transition_count(seq, states):
     """
     Count how many of each type of transition occur in a sequence.
