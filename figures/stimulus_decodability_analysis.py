@@ -192,10 +192,12 @@ def single_time_point_decoding_vs_nary_weight_matrix(
         drives[ctr + 1, drive_next] = 1
 
     drive_seq = np.argmax(drives, axis=1)
+    drive_seq_2 = np.array(zip(drive_seq[:-1], drive_seq[1:]))
 
     # loop through various external drive gains and calculate how accurate the stimulus decoding is
 
     decoding_accuracies = {key: [] for key in keys}
+    decoding_accuracies_2 = {key: [] for key in keys}
     decoding_results_examples = {}
 
     r_0 = np.zeros((N_NODES,))
@@ -214,12 +216,17 @@ def single_time_point_decoding_vs_nary_weight_matrix(
             decoding_results = (rs_seq == drive_seq)
             decoding_accuracies[key].append(np.mean(decoding_results))
 
+            rs_seq_2 = np.array(zip(rs_seq[:-1], rs_seq[1:]))
+
+            decoding_results_2 = np.all(rs_seq_2 == drive_seq_2, axis=1)
+            decoding_accuracies_2[key].append(np.mean(decoding_results_2))
+
             if g_d == G_D_EXAMPLE:
                 decoding_results_examples[key] = decoding_results
 
     # plot things
 
-    fig, axs = plt.subplots(2, 1, figsize=FIG_SIZE, facecolor='white', tight_layout=True)
+    fig, axs = plt.subplots(3, 1, figsize=FIG_SIZE, facecolor='white', tight_layout=True)
 
     for key, color in zip(keys, COLORS):
 
@@ -235,18 +242,30 @@ def single_time_point_decoding_vs_nary_weight_matrix(
 
     axs[0].legend(keys, loc='best')
 
+    for key, color in zip(keys, COLORS):
+
+        axs[1].plot(G_DS, decoding_accuracies_2[key][:-1], c=color, lw=2)
+
+    axs[1].set_xlim(G_DS[0], G_DS[-1])
+    axs[1].set_ylim(0, 1.1)
+
+    axs[1].set_xlabel('g_d')
+    axs[1].set_ylabel('decoding accuracy')
+
+    axs[1].set_title('length 2 sequence decoding accuracy for different network connectivities')
+
     for ctr, (key, color) in enumerate(zip(keys, COLORS)):
 
         decoding_results = decoding_results_examples[key]
-        axs[1].plot(decoding_results + 0.01 * ctr, c=color, lw=2)
+        axs[2].plot(decoding_results + 0.01 * ctr, c=color, lw=2)
 
-    axs[1].set_xlim(0, 140)
-    axs[1].set_ylim(0, 1.1)
+    axs[2].set_xlim(0, 140)
+    axs[2].set_ylim(0, 1.1)
 
-    axs[1].set_xlabel('time step')
+    axs[2].set_xlabel('time step')
     axs[1].set_ylabel('correct decoding')
 
-    axs[1].set_title('example decoder time course')
+    axs[2].set_title('example decoder time course')
 
     for ax in axs:
         set_fontsize(ax, FONT_SIZE)
