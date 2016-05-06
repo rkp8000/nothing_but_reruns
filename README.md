@@ -1,1 +1,1 @@
-How can a neural network replay recently experienced sequential patterns without modifying its synaptic connections?
+How can a neural network replay recently experienced sequential patterns using changes in ensemble excitability? How does this ability depend on the network architecture? What are the benefits that accrue from a network's spontaneous activity mirroring its activity when driven by a stimulus?
