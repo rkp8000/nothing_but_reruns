@@ -252,6 +252,34 @@ class MetricsTestCase(unittest.TestCase):
 
         self.assertAlmostEqual(dkl_zero, 0)
 
+    def test_gather_sequences_works_on_examples(self):
+
+        x = [1, 2, 3, 4, 5, 6, 7]
+        seq_len = 3
+
+        seqs_correct = np.array([
+            [1, 2, 3],
+            [2, 3, 4],
+            [3, 4, 5],
+            [4, 5, 6],
+            [5, 6, 7],
+        ])
+
+        seqs = metrics.gather_sequences(x, seq_len)
+        np.testing.assert_array_equal(seqs, seqs_correct)
+
+        x = [0, 2, 4, 6, 8, 11]
+        seq_len = 4
+
+        seqs_correct = np.array([
+            [0, 2, 4, 6],
+            [2, 4, 6, 8],
+            [4, 6, 8, 11],
+        ])
+
+        seqs = metrics.gather_sequences(x, seq_len)
+        np.testing.assert_array_equal(seqs, seqs_correct)
+
 
 if __name__ == '__main__':
 
