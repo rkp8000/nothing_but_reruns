@@ -12,6 +12,7 @@ from plot import set_fontsize
 def single_time_point_decoding_vs_binary_weight_matrix(
         SEED,
         N_NODES, P_CONNECT, G_W, G_DS, G_D_EXAMPLE, N_TIME_POINTS,
+        N_TIME_POINTS_EXAMPLE, DECODING_SEQUENCE_LENGTHS,
         FIG_SIZE, COLORS, FONT_SIZE):
     """
     Explore how the ability to decode an external drive at a single time point depends on the alignment
@@ -24,13 +25,16 @@ def single_time_point_decoding_vs_binary_weight_matrix(
     single_time_point_decoding_vs_nary_weight_matrix(
         SEED=SEED, N_NODES=N_NODES,
         P_CONNECT=P_CONNECT, STRENGTHS=STRENGTHS, P_STRENGTHS=P_STRENGTHS,
-        G_W=G_W, G_DS=G_DS, G_D_EXAMPLE=G_D_EXAMPLE, N_TIME_POINTS=N_TIME_POINTS,
+        G_W=G_W, G_DS=G_DS, G_D_EXAMPLE=G_D_EXAMPLE,
+        N_TIME_POINTS=N_TIME_POINTS, N_TIME_POINTS_EXAMPLE=N_TIME_POINTS_EXAMPLE,
+        DECODING_SEQUENCE_LENGTHS=DECODING_SEQUENCE_LENGTHS,
         FIG_SIZE=FIG_SIZE, COLORS=COLORS, FONT_SIZE=FONT_SIZE)
 
 
 def single_time_point_decoding_vs_nary_weight_matrix(
         SEED,
-        N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS, G_W, G_DS, G_D_EXAMPLE, N_TIME_POINTS,
+        N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS, G_W, G_DS, G_D_EXAMPLE,
+        N_TIME_POINTS, N_TIME_POINTS_EXAMPLE, DECODING_SEQUENCE_LENGTHS,
         FIG_SIZE, COLORS, FONT_SIZE):
     """
     Explore how the ability to decode an external drive at a single time point depends on the alignment
@@ -91,12 +95,21 @@ def single_time_point_decoding_vs_nary_weight_matrix(
         drives[ctr + 1, drive_next] = 1
 
     drive_seq = np.argmax(drives, axis=1)
-    drive_seq_2 = np.array(zip(drive_seq[:-1], drive_seq[1:]))
+    drive_seqs = {
+        seq_len: metrics.gather_sequences(drive_seq, seq_len)
+        for seq_len in DECODING_SEQUENCE_LENGTHS
+    }
 
     # loop through various external drive gains and calculate how accurate the stimulus decoding is
 
-    decoding_accuracies = {key: [] for key in keys}
-    decoding_accuracies_2 = {key: [] for key in keys}
+    decoding_accuracies = {
+        key: {
+            seq_len: []
+            for seq_len in DECODING_SEQUENCE_LENGTHS
+        }
+        for key in keys
+    }
+
     decoding_results_examples = {}
 
     r_0 = np.zeros((N_NODES,))
@@ -112,46 +125,51 @@ def single_time_point_decoding_vs_nary_weight_matrix(
 
             rs_seq = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
 
-            decoding_results = (rs_seq == drive_seq)
-            decoding_accuracies[key].append(np.mean(decoding_results))
+            # calculate decoding accuracy for this network for all specified sequence lengths
 
-            rs_seq_2 = np.array(zip(rs_seq[:-1], rs_seq[1:]))
+            for seq_len in DECODING_SEQUENCE_LENGTHS:
 
-            decoding_results_2 = np.all(rs_seq_2 == drive_seq_2, axis=1)
-            decoding_accuracies_2[key].append(np.mean(decoding_results_2))
+                rs_seq_staggered = metrics.gather_sequences(rs_seq, seq_len)
+
+                decoding_results = np.all(rs_seq_staggered == drive_seqs[seq_len], axis=1)
+
+                decoding_accuracies[key][seq_len].append(np.mean(decoding_results))
 
             if g_d == G_D_EXAMPLE:
-                decoding_results_examples[key] = decoding_results
+                decoding_results_examples[key] = (rs_seq == drive_seq)
 
     # plot things
 
-    fig, axs = plt.subplots(3, 1, figsize=FIG_SIZE, facecolor='white', tight_layout=True)
+    n_seq_lens = len(DECODING_SEQUENCE_LENGTHS)
 
-    for key, color in zip(keys, COLORS):
+    fig = plt.figure(figsize=FIG_SIZE, facecolor='white', tight_layout=True)
 
-        axs[0].plot(G_DS, decoding_accuracies[key][:-1], c=color, lw=2)
+    # the top row will be decoding accuracies for all sequence lengths
 
-    axs[0].set_xlim(G_DS[0], G_DS[-1])
-    axs[0].set_ylim(0, 1.1)
+    axs = [fig.add_subplot(2, n_seq_lens, ctr + 1) for ctr in range(n_seq_lens)]
 
-    axs[0].set_xlabel('g_d')
+    # the bottom row is example decoding accuracy time courses
+
+    axs.append(fig.add_subplot(2, 1, 2))
+
+    for ax, seq_len in zip(axs[:-1], DECODING_SEQUENCE_LENGTHS):
+
+        for key, color in zip(keys, COLORS):
+
+            ax.plot(G_DS, decoding_accuracies[key][seq_len][:-1], c=color, lw=2)
+
+        ax.set_xlim(G_DS[0], G_DS[-1])
+        ax.set_ylim(0, 1.1)
+
+        ax.set_xlabel('g_d')
+
     axs[0].set_ylabel('decoding accuracy')
 
-    axs[0].set_title('single time-point decoding accuracy for different network connectivities')
+    for ax, seq_len in zip(axs[:-1], DECODING_SEQUENCE_LENGTHS):
+
+        ax.set_title('Length {} sequences'.format(seq_len))
 
     axs[0].legend(keys, loc='best')
-
-    for key, color in zip(keys, COLORS):
-
-        axs[1].plot(G_DS, decoding_accuracies_2[key][:-1], c=color, lw=2)
-
-    axs[1].set_xlim(G_DS[0], G_DS[-1])
-    axs[1].set_ylim(0, 1.1)
-
-    axs[1].set_xlabel('g_d')
-    axs[1].set_ylabel('decoding accuracy')
-
-    axs[1].set_title('length 2 sequence decoding accuracy for different network connectivities')
 
     for ctr, (key, color) in enumerate(zip(keys, COLORS)):
 
@@ -161,7 +179,7 @@ def single_time_point_decoding_vs_nary_weight_matrix(
         axs[-1].plot(y_vals, c=color, lw=2)
         axs[-1].axhline(2 * ctr, color='gray', lw=1, ls='--')
 
-    axs[-1].set_xlim(0, 140)
+    axs[-1].set_xlim(0, N_TIME_POINTS_EXAMPLE)
     axs[-1].set_ylim(-1, 2 * len(keys) + 1)
 
     axs[-1].set_xlabel('time step')
