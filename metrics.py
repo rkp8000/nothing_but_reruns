@@ -4,6 +4,7 @@ Code for various network metrics.
 from __future__ import division, print_function
 import networkx as nx
 import numpy as np
+from scipy import linalg as sp_linalg
 from scipy import stats
 
 
@@ -183,3 +184,15 @@ def transition_dkl(t_0, t_1, base=2):
         t_joints.append(t_mat * np.tile(p_0[:, None], (1, t_mat.shape[1])))
 
     return stats.entropy(t_joints[0].flatten(), t_joints[1].flatten(), base=base)
+
+
+def gather_sequences(x, seq_len):
+    """
+    Convert a 1D array into a 2D array of consecutive sequences.
+
+    E.g., gather_sequences(array([1, 2, 3, 4, 5]), 4) = array([[1, 2, 3, 4], [2, 3, 4, 5]])
+    :param x:
+    :return: 2D sequence array
+    """
+
+    return np.fliplr(sp_linalg.toeplitz(x, x[:seq_len]))[seq_len - 1:]
