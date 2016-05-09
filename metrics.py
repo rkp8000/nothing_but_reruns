@@ -268,3 +268,66 @@ def mutual_info_monte_carlo_estimate(
     second_term = np.mean(outers)
 
     return first_term - second_term
+
+
+def mutual_info_past_stim_current_activity(
+        ntwk, p_tr_stim, p_0_stim, past_seq_length, current_seq_length, mc_samples):
+    """
+    Estimate the mutual information between the past stimulus activity and the current network
+    activity sequence.
+
+    In the calculation of the probability of a current activity sequence given a stimulus
+    in the past, it is assumed that the past activation exactly followed the past stimulus.
+    """
+
+    n_nodes = ntwk.w.shape[0]
+    nodes = np.arange(n_nodes)
+
+    r_0 = np.zeros((n_nodes,), dtype=float)
+    xc_0 = np.zeros((n_nodes,), dtype=float)
+
+    def sample_past_stim():
+
+        # sample past stimulus sequence
+
+        stim_seq = [np.random.choice(nodes, p=p_0_stim)]
+
+        for ctr in range(1, past_run_length):
+
+            p = p_tr_stim[:, stim_seq[ctr - 1]]
+
+            stim_seq.append(np.random.choice(nodes, p=p))
+
+        return stim_seq
+
+    def sample_current_activity_given_past_stim(past_stim):
+
+        # construct drive array and simply run network with stimulus
+
+        drives = np.zeros((past_seq_length + current_seq_length, n_nodes), dtype=float)
+
+        for t, el in stim_seq:
+
+            drives[t, el] = 1
+
+        return ntwk.run(r_0, xc_0, drives).argmax(axis=1)[past_seq_length:]
+
+    def prob_current_activity_given_past_stim(seq, past_stim):
+
+        # construct initial state and hyperexcitability counter from past stimulus
+
+        r_0_p = np.zeros((n_nodes,), dtype=float)
+        r_0_p[past_stim[-1]] = 1
+
+        xc_0_p = np.zeros((n_nodes,), dtype=float)
+        xc_0_p[past_stim] = np.arange(ntwk.t_x - past_stim, ntwk.t_x) + 1
+
+        # calculate probability
+
+        drives = np.zeros((current_seq_length, n_nodes), dtype=float)
+
+        return ntwk.sequence_probability(seq, r_0_p, xc_0_p, drives)
+
+    return mutual_info_monte_carlo_estimate(
+        sample_past_stim, sample_current_activity_given_past_stim,
+        prob_current_activity_given_past_stim, mc_samples)
