@@ -191,6 +191,173 @@ def single_time_point_decoding_vs_nary_weight_matrix(
         set_fontsize(ax, FONT_SIZE)
 
 
+def single_time_point_decoding_vs_nary_weights_fixed_g_d(
+        SEED,
+        N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS, G_W, G_D,
+        N_TIME_POINTS, N_TRIALS, N_TIME_POINTS_EXAMPLE,
+        DECODING_SEQUENCE_LENGTHS,
+        FIG_SIZE, MARKER_SIZE, COLORS, FONT_SIZE):
+    """
+    Run several trials of networks driven by different stimuli, with different weight
+    matrices relative to the stimulus transition matrix.
+    """
+
+    keys = ['matched', 'zero', 'random', 'half_matched']
+
+    np.random.seed(SEED)
+
+    # build original weight matrix and convert to drive transition probability distribution
+
+    ws = {}
+
+    ws['matched'] = connectivity.er_directed_nary(N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS)
+    p_tr_drive, p_0_drive = metrics.softmax_prob_from_weights(ws['matched'], G_W)
+
+    # build the other weight matrices
+
+    ws['zero'] = np.zeros((N_NODES, N_NODES), dtype=float)
+
+    ws['random'] = connectivity.er_directed_nary(N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS)
+
+    rand_mask = np.random.rand(*ws['random'].shape) < 0.5
+    ws['half_matched'] = ws['matched'].copy()
+    ws['half_matched'][rand_mask] = ws['random'][rand_mask]
+
+    # make networks
+
+    ntwks = {}
+
+    for key, w in ws.items():
+
+        ntwks[key] = network.SoftmaxWTAWithLingeringHyperexcitability(
+            w, g_w=G_W, g_x=0, g_d=G_D, t_x=0)
+
+    # perform a few checks
+
+    assert np.sum(np.abs(ws['zero'])) == 0
+
+    for strength in STRENGTHS:
+
+        assert np.sum(ws['matched'] == strength) > 0
+
+    # create random drive sequences
+
+    drivess = []
+    drive_seqss = []
+
+    for _ in range(N_TRIALS):
+
+        drives = np.zeros((N_TIME_POINTS, N_NODES))
+
+        drive_first = np.random.choice(np.arange(N_NODES), p=p_0_drive.flatten())
+        drives[0, drive_first] = 1
+
+        for ctr in range(N_TIME_POINTS - 1):
+
+            drive_last = np.argmax(drives[ctr])
+            drive_next = np.random.choice(range(N_NODES), p=p_tr_drive[:, drive_last])
+
+            drives[ctr + 1, drive_next] = 1
+
+        drive_seq = np.argmax(drives, axis=1)
+        drive_seqs = {
+            seq_len: metrics.gather_sequences(drive_seq, seq_len)
+            for seq_len in DECODING_SEQUENCE_LENGTHS
+        }
+
+        drivess.append(drives)
+        drive_seqss.append(drive_seqs)
+
+    # loop through various external drive gains and calculate how accurate the stimulus decoding is
+
+    decoding_accuracies = {
+        key: {
+            seq_len: []
+            for seq_len in DECODING_SEQUENCE_LENGTHS
+        }
+        for key in keys
+    }
+
+    decoding_results_example = {}
+
+    r_0 = np.zeros((N_NODES,))
+    xc_0 = np.zeros((N_NODES,))
+
+    # run networks
+
+    for key, ntwk in ntwks.items():
+
+        # loop over trials
+
+        for tr_ctr, (drives, drive_seqs) in enumerate(zip(drivess, drive_seqss)):
+
+            rs_seq = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
+
+            # calculate decoding accuracy for this network for all specified sequence lengths
+
+            for seq_len in DECODING_SEQUENCE_LENGTHS:
+
+                rs_seq_staggered = metrics.gather_sequences(rs_seq, seq_len)
+
+                decoding_results = np.all(rs_seq_staggered == drive_seqs[seq_len], axis=1)
+
+                decoding_accuracies[key][seq_len].append(np.mean(decoding_results))
+
+                if seq_len == 1 and tr_ctr == 0:
+
+                    decoding_results_example[key] = decoding_results.flatten()
+
+
+    # plot things
+
+    n_seq_lens = len(DECODING_SEQUENCE_LENGTHS)
+
+    # one subplot per sequence length, plus one for example decoding time-series
+
+    fig = plt.figure(figsize=FIG_SIZE, facecolor='white', tight_layout=True)
+
+    axs = [fig.add_subplot(2, n_seq_lens, ctr) for ctr in range(1, n_seq_lens + 1)]
+    axs.append(fig.add_subplot(2, 1, 2))
+
+    for ax, seq_len in zip(axs[:-1], DECODING_SEQUENCE_LENGTHS):
+
+        for ctr, (key, color) in enumerate(zip(keys, COLORS)):
+
+            acc = decoding_accuracies[key][seq_len]
+
+            y_vals = ctr * np.ones((len(acc),)) + np.random.normal(0, 0.01, len(acc))
+
+            ax.scatter(acc, y_vals, c=color, s=MARKER_SIZE, lw=0)
+
+        ax.set_xlim(0, 1)
+        ax.set_yticks(range(len(keys)))
+        ax.set_xlabel('decoding accuracy')
+        ax.set_title('length {} sequences'.format(seq_len))
+
+    axs[0].set_yticklabels(keys)
+
+    axs[0].legend(keys, loc='best')
+
+    for ctr, (key, color) in enumerate(zip(keys, COLORS)):
+
+        decoding_results = decoding_results_example[key]
+        y_vals = 2 * ctr + decoding_results
+
+        axs[-1].plot(y_vals, c=color, lw=2)
+        axs[-1].axhline(2 * ctr, color='gray', lw=1, ls='--')
+
+    axs[-1].set_xlim(0, N_TIME_POINTS_EXAMPLE)
+    axs[-1].set_ylim(-1, 2 * len(keys) + 1)
+
+    axs[-1].set_xlabel('time step')
+    axs[-1].set_ylabel('correct decoding')
+
+    axs[-1].set_title('example decoder time course')
+
+    for ax in axs:
+        set_fontsize(ax, FONT_SIZE)
+
+
 def spontaneous_vs_driven_dkl(
         SEED,
         N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS, G_W, G_DS, N_TIME_POINTS,
