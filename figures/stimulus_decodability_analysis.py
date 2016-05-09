@@ -340,7 +340,7 @@ def single_time_point_decoding_vs_nary_weights_fixed_g_d(
 
     axs[0].set_yticklabels(keys)
 
-    axs[0].legend(keys, loc='best')
+    axs[-2].legend(keys, loc='best')
 
     for ctr, (key, color) in enumerate(zip(keys, COLORS)):
 
