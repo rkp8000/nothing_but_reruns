@@ -280,6 +280,21 @@ class MetricsTestCase(unittest.TestCase):
         seqs = metrics.gather_sequences(x, seq_len)
         np.testing.assert_array_equal(seqs, seqs_correct)
 
+        x = [1, 3, 5, 7, 9, 11]
+        seq_len = 1
+
+        seqs_correct = np.array([
+            [1],
+            [3],
+            [5],
+            [7],
+            [9],
+            [11],
+        ])
+
+        seqs = metrics.gather_sequences(x, seq_len)
+        np.testing.assert_array_equal(seqs, seqs_correct)
+
 
 if __name__ == '__main__':
 
