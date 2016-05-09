@@ -196,3 +196,75 @@ def gather_sequences(x, seq_len):
     """
 
     return np.fliplr(sp_linalg.toeplitz(x, x[:seq_len]))[seq_len - 1:]
+
+
+def mutual_info_monte_carlo_estimate(
+        sample_a, sample_b_given_a, p_b_given_a, mc_samples):
+    """
+    Estimate the mutual information between two random variables.
+
+    The following equation is used:
+
+    MI(A, B) = E_A [ E_B|A [ log P(B|A) ] ] - E_B [ log E_A [ P(B|A) ] ]
+
+    Requires functions to sample each variable independently, to sample b conditioned on a,
+    and to calculate probability of b conditioned on a.
+
+    :param mc_samples: length-4 array-like of the number of samples that should be used for
+        each expectation value estimate; with respect to the equation above, they are in the order:
+        [outer_1, inner_1, outer_2, inner_2]
+    """
+
+    # calculate first term
+
+    outers = []
+
+    for _ in range(mc_samples[0]):
+
+        # sample a
+
+        a = sample_a()
+
+        inners = []
+
+        for _ in range(mc_samples[1]):
+
+            # sample b given a
+
+            b = sample_b_given_a(a)
+
+            # calculate log probability
+
+            inners.append(np.log(p_b_given_a(b, a)))
+
+        outers.append(np.mean(inners))
+
+    first_term = np.mean(outers)
+
+    # calculate second term
+
+    outers = []
+
+    for _ in range(mc_samples[2]):
+
+        # sample b
+
+        b = sample_b_given_a(sample_a())
+
+        inners = []
+
+        for _ in range(mc_samples[3]):
+
+            # sample a
+
+            a = sample_a()
+
+            # calculate probability
+
+            inners.append(p_b_given_a(b, a))
+
+        outers.append(np.log(np.mean(inners)))
+
+    second_term = np.mean(outers)
+
+    return first_term - second_term
