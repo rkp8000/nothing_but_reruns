@@ -198,6 +198,29 @@ def gather_sequences(x, seq_len):
     return np.fliplr(sp_linalg.toeplitz(x, x[:seq_len]))[seq_len - 1:]
 
 
+def mutual_info_exact(p_joint):
+    """
+    Perform an exact calculation of mutual information, given a joint distribution.
+    """
+
+    # get marginals and conditionals
+
+    p_x = p_joint.sum(1)
+    p_y = p_joint.sum(0)
+
+    p_x_given_ys = [p_col / p_col.sum() for p_col in p_joint.T]
+
+    first_term = stats.entropy(p_x)
+
+    conditional_entropys = np.array([
+        stats.entropy(p_x_given_y) for p_x_given_y in p_x_given_ys
+    ])
+
+    second_term = np.dot(p_y, conditional_entropys)
+
+    return first_term - second_term
+
+
 def mutual_info_monte_carlo_estimate(
         sample_a, sample_b_given_a, p_b_given_a, mc_samples):
     """
