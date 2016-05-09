@@ -196,7 +196,7 @@ def single_time_point_decoding_vs_nary_weights_fixed_g_d(
         N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS, G_W, G_D,
         N_TIME_POINTS, N_TRIALS, N_TIME_POINTS_EXAMPLE,
         DECODING_SEQUENCE_LENGTHS,
-        FIG_SIZE, MARKER_SIZE, COLORS, FONT_SIZE):
+        FIG_SIZE, MARKER_SIZE, VISUAL_SCATTER, COLORS, FONT_SIZE):
     """
     Run several trials of networks driven by different stimuli, with different weight
     matrices relative to the stimulus transition matrix.
@@ -325,14 +325,18 @@ def single_time_point_decoding_vs_nary_weights_fixed_g_d(
 
             acc = decoding_accuracies[key][seq_len]
 
-            y_vals = ctr * np.ones((len(acc),)) + np.random.normal(0, 0.01, len(acc))
+            y_vals = ctr * np.ones((len(acc),)) + np.random.normal(0, VISUAL_SCATTER, len(acc))
 
             ax.scatter(acc, y_vals, c=color, s=MARKER_SIZE, lw=0)
 
-        ax.set_xlim(0, 1)
+        ax.set_xlim(-.1, 1.1)
         ax.set_yticks(range(len(keys)))
         ax.set_xlabel('decoding accuracy')
         ax.set_title('length {} sequences'.format(seq_len))
+
+        if ax is not axs[0]:
+
+            ax.set_yticklabels(len(keys) * [''])
 
     axs[0].set_yticklabels(keys)
 
