@@ -295,6 +295,30 @@ class MetricsTestCase(unittest.TestCase):
         seqs = metrics.gather_sequences(x, seq_len)
         np.testing.assert_array_equal(seqs, seqs_correct)
 
+    def test_mutual_info_exact_works_with_example(self):
+
+        # independent variables
+
+        p_joint = np.array([
+            [0.1, 0.3],
+            [0.15, 0.45]
+        ])
+
+        self.assertAlmostEqual(metrics.mutual_info_exact(p_joint), 0)
+        self.assertAlmostEqual(metrics.mutual_info_exact(p_joint.T), 0)
+
+        # dependent variables
+
+        p_joint = np.array([
+            [0.4, 0.1],
+            [0.1, 0.4],
+        ])
+
+        info_correct = 0.19274475702175742
+
+        self.assertAlmostEqual(metrics.mutual_info_exact(p_joint), info_correct)
+        self.assertAlmostEqual(metrics.mutual_info_exact(p_joint.T), info_correct)
+
 
 if __name__ == '__main__':
 
