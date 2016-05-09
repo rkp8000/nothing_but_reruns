@@ -323,27 +323,27 @@ def mutual_info_past_stim_current_activity(
 
         return stim_seq
 
-    def sample_current_activity_given_past_stim(past_stim):
+    def sample_current_activity_given_past_stim(past_stim_seq):
 
         # construct drive array and simply run network with stimulus
 
         drives = np.zeros((past_seq_length + current_seq_length, n_nodes), dtype=float)
 
-        for t, el in stim_seq:
+        for t, el in past_stim_seq:
 
             drives[t, el] = 1
 
         return ntwk.run(r_0, xc_0, drives).argmax(axis=1)[past_seq_length:]
 
-    def prob_current_activity_given_past_stim(seq, past_stim):
+    def prob_current_activity_given_past_stim(seq, past_stim_seq):
 
         # construct initial state and hyperexcitability counter from past stimulus
 
         r_0_p = np.zeros((n_nodes,), dtype=float)
-        r_0_p[past_stim[-1]] = 1
+        r_0_p[past_stim_seq[-1]] = 1
 
         xc_0_p = np.zeros((n_nodes,), dtype=float)
-        xc_0_p[past_stim] = np.arange(ntwk.t_x - past_stim, ntwk.t_x) + 1
+        xc_0_p[past_stim_seq] = np.arange(ntwk.t_x - past_stim_seq, ntwk.t_x) + 1
 
         # calculate probability
 
