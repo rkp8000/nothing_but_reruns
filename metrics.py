@@ -315,7 +315,7 @@ def mutual_info_past_stim_current_activity(
 
         stim_seq = [np.random.choice(nodes, p=p_0_stim)]
 
-        for ctr in range(1, past_run_length):
+        for ctr in range(1, past_seq_length):
 
             p = p_tr_stim[:, stim_seq[ctr - 1]]
 
@@ -329,7 +329,7 @@ def mutual_info_past_stim_current_activity(
 
         drives = np.zeros((past_seq_length + current_seq_length, n_nodes), dtype=float)
 
-        for t, el in past_stim_seq:
+        for t, el in enumerate(past_stim_seq):
 
             drives[t, el] = 1
 
@@ -343,7 +343,7 @@ def mutual_info_past_stim_current_activity(
         r_0_p[past_stim_seq[-1]] = 1
 
         xc_0_p = np.zeros((n_nodes,), dtype=float)
-        xc_0_p[past_stim_seq] = np.arange(ntwk.t_x - past_stim_seq, ntwk.t_x) + 1
+        xc_0_p[past_stim_seq] = np.arange(ntwk.t_x - len(past_stim_seq), ntwk.t_x) + 1
 
         # calculate probability
 
