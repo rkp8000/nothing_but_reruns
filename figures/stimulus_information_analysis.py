@@ -88,6 +88,6 @@ def mutual_info_past_stim_current_sequence_vs_weights(
     ax.set_xlabel('information')
     ax.set_yticklabels(keys)
 
-    ax.legend(keys, loc='best')
+    ax.legend(keys, loc='upper left')
 
     set_fontsize(ax, FONT_SIZE)
