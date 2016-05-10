@@ -319,6 +319,51 @@ class MetricsTestCase(unittest.TestCase):
         self.assertAlmostEqual(metrics.mutual_info_exact(p_joint), info_correct)
         self.assertAlmostEqual(metrics.mutual_info_exact(p_joint.T), info_correct)
 
+    def test_levenshtein_with_examples(self):
+
+        x = [1, 2, 5, 7, 5, 3, 2]
+        y = [1, 3, 4, 7, 7, 5, 3, 2]
+
+        self.assertEqual(metrics.levenshtein(x, y), 3)
+        self.assertEqual(metrics.levenshtein(x, x), 0)
+
+    def test_multi_pop_stat_matrix_works_on_example(self):
+
+        np.random.seed(0)
+
+        x = np.random.normal(0, 1, 10)
+        y = np.random.normal(1, 1, 10)
+        z = np.random.normal(1.2, 1, 10)
+
+        t_vals_correct = np.array([
+            [0, -1.6868710732328158, -1.1474494899206296],
+            [1.6868710732328158, 0, 0.020710431832923166],
+            [1.1474494899206296, -0.020710431832923166, 0],
+        ])
+
+        p_vals_correct = np.array([
+            [1.0, 0.10888146383913824, 0.26621898967159419],
+            [0.10888146383913824, 1.0, 0.98370450078884009],
+            [0.26621898967159419, 0.98370450078884009, 1.0],
+        ])
+
+        pop_names = ['x', 'y', 'z']
+
+        index_correct = ['x', 'y', 'z']
+        columns_correct = ['x', 'y', 'z']
+
+        t_vals_df, p_vals_df = metrics.multi_pop_stats_matrix(
+            stats.ttest_ind, pop_names, [x, y, z])
+
+        self.assertEqual(list(t_vals_df.index), index_correct)
+        self.assertEqual(list(t_vals_df.columns), columns_correct)
+
+        self.assertEqual(list(p_vals_df.index), index_correct)
+        self.assertEqual(list(p_vals_df.columns), columns_correct)
+
+        np.testing.assert_array_almost_equal(t_vals_df.as_matrix().astype(float), t_vals_correct)
+        np.testing.assert_array_almost_equal(p_vals_df.as_matrix().astype(float), p_vals_correct)
+
 
 if __name__ == '__main__':
 
