@@ -4,6 +4,7 @@ Code for various network metrics.
 from __future__ import division, print_function
 import networkx as nx
 import numpy as np
+import pandas as pd
 from scipy import linalg as sp_linalg
 from scipy import stats
 
@@ -354,3 +355,62 @@ def mutual_info_past_stim_current_activity(
     return mutual_info_monte_carlo_estimate(
         sample_past_stim, sample_current_activity_given_past_stim,
         prob_current_activity_given_past_stim, mc_samples)
+
+
+def levenshtein(a, b):
+    """Calculates the Levenshtein distance between two sequences.
+
+    Modified from: http://hetland.org/coding/python/levenshtein.py.
+    """
+
+    n, m = len(a), len(b)
+
+    if n > m:
+        # Make sure n <= m, to use O(min(n,m)) space
+        a, b = b, a
+        n, m = m, n
+
+    current = range(n + 1)
+
+    for i in range(1, m + 1):
+
+        previous, current = current, [i] + [0]*n
+
+        for j in range(1, n+1):
+
+            add, delete = previous[j] + 1, current[j-1] + 1
+            change = previous[j - 1]
+
+            if a[j - 1] != b[i - 1]:
+
+                change = change + 1
+
+            current[j] = min(add, delete, change)
+
+    return current[n]
+
+
+def multi_pop_stats_matrix(stat_fun, pop_names, pops):
+    """
+
+    Return a matrix (as pandas DataFrame) of statistical tests between pairs of populations.
+
+    :param stat_fun: two-argument statistical function; should return statistic and p-value
+    :param pop_names: list of population names
+    :param pops: list of populations
+    :return: statistic matrix, p-value matrix
+    """
+
+    df_stat = pd.DataFrame(index=pop_names, columns=pop_names)
+    df_p_val = pd.DataFrame(index=pop_names, columns=pop_names)
+
+    for pop_name_0, pop_0 in zip(pop_names, pops):
+
+        for pop_name_1, pop_1 in zip(pop_names, pops):
+
+            stat, p_val = stat_fun(pop_0, pop_1)
+
+            df_stat.loc[pop_name_0][pop_name_1] = stat
+            df_p_val.loc[pop_name_0][pop_name_1] = p_val
+
+    return df_stat, df_p_val
