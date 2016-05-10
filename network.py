@@ -125,3 +125,106 @@ class SoftmaxWTAWithLingeringHyperexcitability(object):
             xc[candidate_node] = self.t_x
 
         return p_seq
+
+
+class SoftmaxWTAWithLingeringHyperexcitabilityAndSTDP(object):
+    """
+    Similar to the class it inherits from, except that it includes "poor-man's" STDP.
+    """
+
+    def __init__(self, w, g_w, g_x, g_d, t_x, w_max, alpha):
+
+        self.w = w
+        self.g_w = g_w
+        self.g_x = g_x
+        self.g_d = g_d
+        self.t_x = t_x
+
+        self.w_max = w_max
+        self.alpha = alpha
+
+        self.n_nodes = w.shape[0]
+
+    def calculate_inputs(self, r, xc, drive, w):
+        """
+        Calculate vector of inputs to network given previous activation state, hyperexcitability counter, and drive.
+        :param r: activation state at last time step
+        :param xc: hyperexcitability counter
+        :param drive: external drive
+        :param w: weight matrix
+        :return: vector of inputs
+        """
+
+        upstream = w.dot(r)
+        excitability = (xc > 0).astype(float)
+
+        return self.g_w * upstream + self.g_x * excitability + self.g_d * drive
+
+    def run(self, r_0, xc_0, drives, weight_measurement_function=None):
+        """
+        Run the network under a set of external drives.
+
+        :param r_0: initial activation state
+        :param xc_0: initial hyperexcitability counter
+        :param drives: external drives at each time point
+        :param weight_measurement_function: function to measure some aspect of the weight matrix
+        :return: network activation at each time point
+        """
+
+        r = copy(r_0)
+        xc = copy(xc_0)
+
+        rs = []
+
+        w = copy(self.w)
+
+        w_measurements = []
+
+        for drive in drives:
+
+            previous_node = r.argmax()
+
+            # calculate inputs and softmax probabilities
+
+            inputs = self.calculate_inputs(r, xc, drive, w)
+            prob = _calculate_softmax_probability(inputs)
+
+            # select active node
+
+            active_node = np.random.choice(range(self.n_nodes), p=prob)
+            r = np.zeros((self.n_nodes,))
+            r[active_node] = 1.
+
+            rs.append(r)
+
+            # decrement hyperexcitability counters
+
+            xc[xc > 0] -= 1
+
+            # turn on hyperexcitability of active node
+
+            xc[active_node] = self.t_x
+
+            # update weight in accordance with previously and currently active nodes
+
+            if w[active_node, previous_node] > 0:
+
+                # get normalization factor
+
+                norm_factor = w[:, previous_node].sum()
+
+                # increase relevant connection in STDP-like way
+
+                w[active_node, previous_node] += (self.alpha * (self.w_max - w[active_node, previous_node]))
+
+                # normalize outgoing connections
+
+                w[:, previous_node] *= (norm_factor / w[:, previous_node].sum())
+
+            # take measurement
+
+            if weight_measurement_function is not None:
+
+                w_measurements.append(weight_measurement_function(w))
+
+        return np.array(rs), w_measurements
