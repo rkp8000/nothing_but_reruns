@@ -79,6 +79,15 @@ def mutual_info_past_stim_current_sequence_vs_weights(
         pop_names=keys,
         pops=[info_estimates[key] for key in keys])
 
+    # display tables of statistics and p-values
+
+    print('pairwise t-values')
+    display(t_vals)
+
+    print('pairwise p-values')
+    display(p_vals)
+
+
     # plot things
 
     fig, ax = plt.subplots(1, 1, figsize=FIG_SIZE, facecolor='white', tight_layout=True)
@@ -100,10 +109,3 @@ def mutual_info_past_stim_current_sequence_vs_weights(
 
     set_fontsize(ax, FONT_SIZE)
 
-    # display tables of statistics and p-values
-
-    print('pairwise t-values')
-    display(t_vals)
-
-    print('pairwise p-values')
-    display(p_vals)
