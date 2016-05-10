@@ -1,4 +1,5 @@
 from __future__ import division, print_function
+from IPython.display import display
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
@@ -7,6 +8,8 @@ import connectivity
 import metrics
 import network
 from plot import set_fontsize
+
+plt.style.use('ggplot')
 
 
 def single_time_point_decoding_vs_binary_weight_matrix(
@@ -816,3 +819,128 @@ def single_time_point_decoding_with_random_spreading(
 
     for ax in axs:
         set_fontsize(ax, FONT_SIZE)
+
+
+def decoding_past_stim_from_present_activity(
+    SEED,
+    N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS, G_W, G_X, G_D, T_X,
+    DRIVEN_RUN_LENGTH, DRIVEN_RECORD_START, DRIVEN_RECORD_END,
+    SPONT_RUN_LENGTH, SPONT_RECORD_START,
+    N_TRIALS,
+    FIG_SIZE, VISUAL_SCATTER, MARKER_SIZE, COLORS, FONT_SIZE):
+    """
+    Estimate how well previous stimulus sequence can be decoded from current network activity.
+    """
+
+    keys = ['matched', 'zero', 'random', 'half_matched']
+
+    np.random.seed(SEED)
+
+    # build original weight matrix and convert to drive transition probability distribution
+
+    ws = {}
+
+    ws['matched'] = connectivity.er_directed_nary(N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS)
+    p_tr_drive, p_0_drive = metrics.softmax_prob_from_weights(ws['matched'], G_W)
+
+    # build the other weight matrices
+
+    ws['zero'] = np.zeros((N_NODES, N_NODES), dtype=float)
+
+    ws['random'] = connectivity.er_directed_nary(N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS)
+
+    rand_mask = np.random.rand(*ws['random'].shape) < 0.5
+    ws['half_matched'] = ws['matched'].copy()
+    ws['half_matched'][rand_mask] = ws['random'][rand_mask]
+
+    # make networks
+
+    ntwks = {}
+
+    for key, w in ws.items():
+
+        ntwks[key] = network.SoftmaxWTAWithLingeringHyperexcitability(
+            w, g_w=G_W, g_x=G_X, g_d=G_D, t_x=T_X)
+
+    # perform a few checks
+
+    assert np.sum(np.abs(ws['zero'])) == 0
+
+    for strength in STRENGTHS:
+
+        assert np.sum(ws['matched'] == strength) > 0
+
+    # create random drive sequences
+
+    drivess = []
+    drive_seqs = []
+
+    for _ in range(N_TRIALS):
+
+        drives = np.zeros((DRIVEN_RUN_LENGTH + SPONT_RUN_LENGTH, N_NODES))
+
+        drive_first = np.random.choice(np.arange(N_NODES), p=p_0_drive.flatten())
+        drives[0, drive_first] = 1
+
+        for ctr in range(DRIVEN_RUN_LENGTH - 1):
+
+            drive_last = np.argmax(drives[ctr])
+            drive_next = np.random.choice(range(N_NODES), p=p_tr_drive[:, drive_last])
+
+            drives[ctr + 1, drive_next] = 1
+
+        drive_seq = np.argmax(drives, axis=1)
+
+        drivess.append(drives)
+        drive_seqs.append(drive_seq)
+
+    # loop over networks and trials
+
+    decoding_distances = {key: [] for key in keys}
+
+    r_0 = np.zeros((N_NODES,))
+    xc_0 = np.zeros((N_NODES,))
+
+    for key, ntwk in ntwks.items():
+
+        for drive_seq, drives in zip(drive_seqs, drivess):
+
+            rs_seq = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
+
+            drive_recorded = drive_seq[DRIVEN_RECORD_START:DRIVEN_RECORD_END]
+            spont_recorded = rs_seq[DRIVEN_RUN_LENGTH + SPONT_RECORD_START:]
+
+            assert len(spont_recorded) == (SPONT_RUN_LENGTH - SPONT_RECORD_START)
+
+            decoding_distances[key].append(metrics.levenshtein(drive_recorded, spont_recorded))
+
+    # get t- and p-values across populations
+
+    t_vals, p_vals = metrics.multi_pop_stats_matrix(
+        stat_fun=stats.ttest_ind,
+        pop_names=keys,
+        pops=[decoding_distances[key] for key in keys])
+
+
+    # display tables of statistics and p-values
+
+    print('pairwise t-values')
+    display(t_vals)
+
+    print('pairwise p-values')
+    display(p_vals)
+
+
+    # plot things
+
+    max_levenshtein = max(DRIVEN_RECORD_END - DRIVEN_RECORD_START, SPONT_RUN_LENGTH - SPONT_RECORD_START)
+    bins = np.arange(max_levenshtein + 2) - 0.5
+
+    fig, ax = plt.subplots(1, 1, figsize=FIG_SIZE, facecolor='white', tight_layout=True)
+
+    ax.hist([decoding_distances[key] for key in keys], bins=bins, color=COLORS, lw=0)
+    ax.set_xlabel('Levenshtein distance')
+
+    ax.legend(keys, loc='best')
+
+    set_fontsize(ax, FONT_SIZE)
