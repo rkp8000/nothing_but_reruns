@@ -40,7 +40,7 @@ def fancy_raster(ax, spikes, drives, spike_marker_size=20, drive_marker_base_siz
         )
 
 
-def fancy_raster_stars_above(ax, spikes, drives, spike_marker_size=20, star_marker_size=50, rise=6):
+def fancy_raster_arrows_above(ax, spikes, drives, spike_marker_size=20, arrow_marker_size=50, rise=6):
     """
     Plot raster plot, where certain spikes can be marked with a star above them.
     :param ax:
@@ -61,5 +61,5 @@ def fancy_raster_stars_above(ax, spikes, drives, spike_marker_size=20, star_mark
         drive_rows += rise
 
         ax.scatter(
-            drive_times, drive_rows, s=star_marker_size, marker=(6, 1, 0),
+            drive_times, drive_rows, s=arrow_marker_size, marker='v',
             facecolor='r', edgecolor='none')
