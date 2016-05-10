@@ -4,7 +4,9 @@ import numpy as np
 
 from connectivity import feed_forward_grid
 from network import SoftmaxWTAWithLingeringHyperexcitability as network
-from plot import fancy_raster, fancy_raster_stars_above, set_fontsize
+from plot import fancy_raster, fancy_raster_arrows_above, set_fontsize
+
+plt.style.use('ggplot')
 
 
 def make_feed_forward_grid_weights(shape, spread):
@@ -98,23 +100,23 @@ def replay_example(
 
     for ax, drives, rs in zip(axs[:-1], all_drives, all_rs):
 
-        fancy_raster_stars_above(ax, rs, drives, spike_marker_size=40, star_marker_size=80, rise=8)
+        fancy_raster_arrows_above(ax, rs, drives, spike_marker_size=40, arrow_marker_size=80, rise=6)
 
         x_fill = np.linspace(-1, np.sum(drives > 0) - 1.5, 3, endpoint=True)
         y_fill_lower = -1 * np.ones(x_fill.shape)
         y_fill_upper = n_nodes * np.ones(x_fill.shape)
 
-        ax.fill_between(x_fill, y_fill_lower, y_fill_upper, color='gray', alpha=0.2)
+        ax.fill_between(x_fill, y_fill_lower, y_fill_upper, color='red', alpha=0.1)
 
-    fancy_raster_stars_above(
+    fancy_raster_arrows_above(
         axs[-1], rs_spontaneous, drives_spontaneous,
-        spike_marker_size=40, star_marker_size=80, rise=8)
+        spike_marker_size=40, arrow_marker_size=80, rise=6)
 
     x_fill = np.linspace(-1, np.sum(all_drives[0] > 0) - 1.5, 3, endpoint=True)
     y_fill_lower = -1 * np.ones(x_fill.shape)
     y_fill_upper = n_nodes * np.ones(x_fill.shape)
 
-    axs[-1].fill_between(x_fill, y_fill_lower, y_fill_upper, color='gray', alpha=0.2)
+    axs[-1].fill_between(x_fill, y_fill_lower, y_fill_upper, color='red', alpha=0.1)
 
     for ax_ctr, ax in enumerate(axs):
 
