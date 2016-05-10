@@ -1,6 +1,8 @@
-from __future__ import division
+from __future__ import division, print_function
+from IPython.display import display, HTML
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy import stats
 
 import connectivity
 import metrics
@@ -70,6 +72,12 @@ def mutual_info_past_stim_current_sequence_vs_weights(
                     current_seq_length=CURRENT_SEQUENCE_LENGTH,
                     mc_samples=MC_SAMPLE_SIZES))
 
+    # get t- and p-values across populations
+
+    t_vals, p_vals = metrics.multi_pop_stats_matrix(
+        stat_fun=stats.ttest_ind,
+        pop_names=keys,
+        pops=[info_estimates[key] for key in keys])
 
     # plot things
 
@@ -91,3 +99,11 @@ def mutual_info_past_stim_current_sequence_vs_weights(
     ax.legend(keys, loc='upper left')
 
     set_fontsize(ax, FONT_SIZE)
+
+    # display tables of statistics and p-values
+
+    print('pairwise t-values')
+    display(t_vals)
+
+    print('pairwise p-values')
+    display(p_vals)
