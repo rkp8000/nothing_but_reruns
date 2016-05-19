@@ -343,7 +343,9 @@ def single_time_point_decoding_vs_nary_weights_fixed_g_d(
 
     axs[0].set_yticklabels(keys)
 
-    axs[-2].legend(keys, loc='best')
+    for label, color in zip(axs[0].get_yticklabels(), COLORS):
+
+        label.set_color(color)
 
     for ctr, (key, color) in enumerate(zip(keys, COLORS)):
 
@@ -360,6 +362,187 @@ def single_time_point_decoding_vs_nary_weights_fixed_g_d(
     axs[-1].set_ylabel('correct decoding')
 
     axs[-1].set_title('example decoder time course')
+
+    for ax in axs:
+        set_fontsize(ax, FONT_SIZE)
+
+
+def single_time_point_decoding_vs_nary_weights_fixed_g_d_varied_match(
+        SEED,
+        N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS, G_W, G_D,
+        MATCH_PROPORTIONS, MATCH_PROPORTION_EXAMPLE_IDX,
+        N_TIME_POINTS, N_TRIALS, N_TIME_POINTS_EXAMPLE,
+        DECODING_SEQUENCE_LENGTHS,
+        COLORS, COLOR_MATCHED, COLOR_ZERO, FIG_SIZE, FONT_SIZE):
+    """
+    Run several trials of networks driven by different stimuli, with different weight
+    matrices relative to the stimulus transition matrix.
+    """
+
+    keys = ['mixed_random', 'mixed_zero']
+
+    np.random.seed(SEED)
+
+    decoding_results_example = {}
+
+    # the following is indexed by [key][seq_len][trial][match_proportion_idx]
+
+    decoding_accuracies = {
+        key: {
+            seq_len: [[] for _ in range(N_TRIALS)]
+            for seq_len in DECODING_SEQUENCE_LENGTHS
+        }
+        for key in keys
+    }
+
+    ## RUN SIMULATIONS AND RECORD DECODING ACCURACIES
+
+    r_0 = np.zeros((N_NODES,))
+    xc_0 = np.zeros((N_NODES,))
+
+    for tr_ctr in range(N_TRIALS):
+
+        # build original weight matrix and convert to drive transition probability distribution
+
+        w_matched = connectivity.er_directed_nary(N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS)
+        p_tr_drive, p_0_drive = metrics.softmax_prob_from_weights(w_matched, G_W)
+
+        # build template random and zero matrices
+
+        w_random = connectivity.er_directed_nary(N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS)
+        w_zero = np.zeros((N_NODES, N_NODES), dtype=float)
+
+        for mp_ctr, match_proportion in enumerate(MATCH_PROPORTIONS):
+
+            ws = {}
+
+            # make mixed weight matrices
+
+            random_mask = np.random.rand(*w_matched.shape) < match_proportion
+            zero_mask = np.random.rand(*w_matched.shape) < match_proportion
+
+            ws['mixed_random'] = w_random.copy()
+            ws['mixed_random'][random_mask] = w_matched[random_mask]
+
+            ws['mixed_zero'] = w_zero.copy()
+            ws['mixed_zero'][zero_mask] = w_matched[zero_mask]
+
+            # make networks
+
+            ntwks = {}
+
+            for key, w in ws.items():
+
+                ntwks[key] = network.SoftmaxWTAWithLingeringHyperexcitability(
+                    w, g_w=G_W, g_x=0, g_d=G_D, t_x=0)
+
+            # create random drive sequences
+
+            drives = np.zeros((N_TIME_POINTS, N_NODES))
+
+            drive_first = np.random.choice(np.arange(N_NODES), p=p_0_drive.flatten())
+            drives[0, drive_first] = 1
+
+            for ctr in range(N_TIME_POINTS - 1):
+
+                drive_last = np.argmax(drives[ctr])
+                drive_next = np.random.choice(range(N_NODES), p=p_tr_drive[:, drive_last])
+
+                drives[ctr + 1, drive_next] = 1
+
+            drive_seq = np.argmax(drives, axis=1)
+            drive_seqs = {
+                seq_len: metrics.gather_sequences(drive_seq, seq_len)
+                for seq_len in DECODING_SEQUENCE_LENGTHS
+            }
+
+            # run networks
+
+            for key, ntwk in ntwks.items():
+
+                rs_seq = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
+
+                # calculate decoding accuracy for this network for all specified sequence lengths
+
+                for seq_len in DECODING_SEQUENCE_LENGTHS:
+
+                    rs_seq_staggered = metrics.gather_sequences(rs_seq, seq_len)
+
+                    decoding_results = np.all(rs_seq_staggered == drive_seqs[seq_len], axis=1)
+
+                    decoding_accuracies[key][seq_len][tr_ctr].append(np.mean(decoding_results))
+
+                    if tr_ctr == 0 and mp_ctr == MATCH_PROPORTION_EXAMPLE_IDX and seq_len == 1:
+
+                        decoding_results_example[key] = decoding_results.flatten()
+
+                    if key == 'mixed_zero' and tr_ctr == 0 and match_proportion == 0 and seq_len == 1:
+
+                        decoding_results_example['zero'] = decoding_results.flatten()
+
+                    if key == 'mixed_zero' and tr_ctr == 0 and match_proportion == 1 and seq_len == 1:
+
+                        decoding_results_example['matched'] = decoding_results.flatten()
+
+
+    ## MAKE PLOTS
+
+    n_seq_lens = len(DECODING_SEQUENCE_LENGTHS)
+
+    # one subplot per sequence length, plus one for example decoding time-series
+
+    fig, axs = plt.subplots(n_seq_lens + 1, 1, figsize=FIG_SIZE, facecolor='white', tight_layout=True)
+
+    for ax, seq_len in zip(axs[:-1], DECODING_SEQUENCE_LENGTHS):
+
+        handles = []
+
+        for ctr, (key, color) in enumerate(zip(keys, COLORS)):
+
+            accs = np.array(decoding_accuracies[key][seq_len])
+
+            # plot all trials
+
+            ax.plot(MATCH_PROPORTIONS, accs.T, c=color, lw=1, zorder=0)
+
+            # plot mean
+
+            handle, = ax.plot(MATCH_PROPORTIONS, accs.mean(0), c=color, lw=3, label=key, zorder=1)
+
+            handles.append(handle)
+
+        ax.set_xlim(0, 1)
+        ax.set_ylim(-.1, 1.1)
+
+        ax.set_xlabel('match proportion')
+        ax.set_ylabel('decoding accuracy')
+
+        ax.set_title('length {} sequences'.format(seq_len))
+
+        ax.legend(handles=handles, loc='upper left')
+
+    handles = []
+
+    for ctr, (key, color) in enumerate(zip(['matched', 'zero'] + keys, [COLOR_MATCHED, COLOR_ZERO] + COLORS)):
+
+        decoding_results = decoding_results_example[key]
+        y_vals = 2 * ctr + decoding_results
+
+        handle, = axs[-1].plot(y_vals, c=color, lw=2, label=key)
+
+        handles.append(handle)
+
+        axs[-1].axhline(2 * ctr, color='gray', lw=1, ls='--')
+
+    axs[-1].set_xlim(0, N_TIME_POINTS_EXAMPLE)
+    axs[-1].set_ylim(-1, 2 * (len(keys) + 2) + 4)
+
+    axs[-1].set_xlabel('time step')
+    axs[-1].set_ylabel('correct decoding')
+
+    axs[-1].set_title('example decoder time course')
+
+    axs[-1].legend(handles=handles, loc='upper left')
 
     for ax in axs:
         set_fontsize(ax, FONT_SIZE)
@@ -936,10 +1119,11 @@ def decoding_past_stim_from_present_activity(
     max_levenshtein = max(DRIVEN_RECORD_END - DRIVEN_RECORD_START, SPONT_RUN_LENGTH - SPONT_RECORD_START)
     bins = np.arange(max_levenshtein + 2) - 0.5
 
-    fig, ax = plt.subplots(1, 1, figsize=FIG_SIZE, facecolor='white', tight_layout=True)
+    _, ax = plt.subplots(1, 1, figsize=FIG_SIZE, facecolor='white', tight_layout=True)
 
     ax.hist([decoding_distances[key] for key in keys], bins=bins, color=COLORS, lw=0)
     ax.set_xlabel('Levenshtein distance')
+    ax.set_ylabel('Trials')
 
     ax.legend(keys, loc='best')
 
