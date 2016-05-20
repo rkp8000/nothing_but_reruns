@@ -199,13 +199,13 @@ def single_time_point_decoding_vs_nary_weights_fixed_g_d(
         N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS, G_W, G_D,
         N_TIME_POINTS, N_TRIALS, N_TIME_POINTS_EXAMPLE,
         DECODING_SEQUENCE_LENGTHS,
-        FIG_SIZE, MARKER_SIZE, VISUAL_SCATTER, COLORS, FONT_SIZE):
+        FIG_SIZE, COLORS, FONT_SIZE):
     """
     Run several trials of networks driven by different stimuli, with different weight
     matrices relative to the stimulus transition matrix.
     """
 
-    keys = ['matched', 'zero', 'random', 'half_matched']
+    keys = ['matched', 'zero', 'half_matched', 'random']
 
     np.random.seed(SEED)
 
@@ -324,13 +324,16 @@ def single_time_point_decoding_vs_nary_weights_fixed_g_d(
 
     for ax, seq_len in zip(axs[:-1], DECODING_SEQUENCE_LENGTHS):
 
-        for ctr, (key, color) in enumerate(zip(keys, COLORS)):
+        accs = [np.array(decoding_accuracies[key][seq_len]) for key in keys]
 
-            acc = decoding_accuracies[key][seq_len]
+        acc_means = [acc.mean() for acc in accs]
+        acc_stds = [acc.std() for acc in accs]
 
-            y_vals = ctr * np.ones((len(acc),)) + np.random.normal(0, VISUAL_SCATTER, len(acc))
+        error_kw = {'ecolor': 'k', 'lw': 3, 'capsize': 10, 'capthick': 3}
 
-            ax.scatter(acc, y_vals, c=color, s=MARKER_SIZE, lw=0)
+        ax.barh(
+            range(len(keys)), acc_means, xerr=acc_stds,
+            color=COLORS, lw=0, align='center', error_kw=error_kw)
 
         ax.set_xlim(-.1, 1.1)
         ax.set_yticks(range(len(keys)))
