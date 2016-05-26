@@ -391,6 +391,60 @@ class MetricsTestCase(unittest.TestCase):
         np.testing.assert_array_almost_equal(p_vals_df.as_matrix().astype(float), p_vals_correct)
 
 
+class FigureAuxiliaryFunctionsTestCase(unittest.TestCase):
+
+    def test_build_tree_structure_demo_connectivity_example_works(self):
+
+        from figures.dynamic_implementation \
+            import _build_tree_structure_demo_connectivity
+
+        branch_length = 2
+        w_pp = 3
+        w_mp = 2
+        w_pm = 4
+        w_mm = 5
+
+        upper_left_correct = np.array([
+            #0  1  2  3  4  5  6  7  8  9 10 11 12
+            [0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # 0
+            [0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # 1
+            [0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0],  # 2
+            [0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # 3
+            [0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0],  # 4
+            [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # 5
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # 6
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0],  # 7
+            [0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0],  # 8
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0],  # 9
+            [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0],  # 10
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0],  # 11
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0],  # 12
+        ])
+
+        lower_left_correct = w_mp * np.eye(13)
+        upper_right_correct = w_pm * np.eye(13)
+        lower_right_correct = w_mm * np.eye(13)
+
+        branches_correct = [
+            np.array([6, 8, 10, 11, 12]),
+            np.array([6, 4, 2, 1, 0]),
+            np.array([6, 8, 10, 9, 7]),
+            np.array([6, 4, 2, 3, 5]),
+        ]
+
+        w, branches = _build_tree_structure_demo_connectivity(
+            branch_length, w_pp, w_mp, w_pm, w_mm)
+
+        np.testing.assert_array_almost_equal(w[:13, :13], upper_left_correct)
+        np.testing.assert_array_almost_equal(w[13:, :13], lower_left_correct)
+        np.testing.assert_array_almost_equal(w[:13, 13:], upper_right_correct)
+        np.testing.assert_array_almost_equal(w[13:, 13:], lower_right_correct)
+
+        for b, b_correct in zip(branches, branches_correct):
+
+            np.testing.assert_array_almost_equal(b, b_correct)
+
+
 if __name__ == '__main__':
 
     unittest.main()
