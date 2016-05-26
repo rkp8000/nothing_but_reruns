@@ -67,6 +67,32 @@ class ConnectivityTestCase(unittest.TestCase):
         w = connectivity.feed_forward_grid(shape=shape, spread=spread)
         np.testing.assert_array_equal(w, w_correct)
 
+    def test_adlib_connectivity_matrix_is_created_correctly(self):
+
+        principal_mask = np.array([
+            [0, 1, 1],
+            [1, 0, 1],
+            [0, 1, 0],
+        ])
+
+        w_pp = 3
+        w_mp = 2
+        w_pm = 7
+        w_mm = 4
+
+        w_correct = np.array([
+            [0, 3, 3, 7, 0, 0],
+            [3, 0, 3, 0, 7, 0],
+            [0, 3, 0, 0, 0, 7],
+            [2, 0, 0, 4, 0, 0],
+            [0, 2, 0, 0, 4, 0],
+            [0, 0, 2, 0, 0, 4.],
+        ])
+
+        w = connectivity.basic_adlib(principal_mask, w_pp, w_mp, w_pm, w_mm)
+
+        np.testing.assert_array_almost_equal(w, w_correct)
+
 
 class NetworkProbabilityCalculationTestCase(unittest.TestCase):
 
