@@ -80,3 +80,25 @@ def er_directed_nary(n_nodes, p_connect, strengths, p_strengths):
     w[w > 0] = np.random.choice(strengths, size=(w.sum(),), p=p_strengths)
 
     return w
+
+
+def basic_adlib(principal_connectivity_mask, w_pp, w_mp, w_pm, w_mm):
+    """
+    Build the connectivity for a basic ADLIB (activation-dependent lingering increases in baseline) network.
+
+    :param primary_connectivity_mask: binary connections among principal nodes
+    :param w_pp: connection strength among principal nodes
+    :param w_mp: connection strength from principal to memory nodes
+    :param w_pm: connection strength from memory to principal nodes
+    :param w_mm: self connection strength for memory nodes
+    :return: weight matrix
+    """
+
+    n_nodes = principal_connectivity_mask.shape[0]
+
+    w_principal = principal_connectivity_mask.astype(float) * w_pp
+
+    w_left = np.concatenate([w_principal, w_mp * np.eye(n_nodes)], axis=0)
+    w_right = np.concatenate([w_pm * np.eye(n_nodes), w_mm * np.eye(n_nodes)], axis=0)
+
+    return np.concatenate([w_left, w_right], axis=1)
