@@ -63,3 +63,36 @@ def fancy_raster_arrows_above(ax, spikes, drives, spike_marker_size=20, arrow_ma
         ax.scatter(
             drive_times, drive_rows, s=arrow_marker_size, marker='v',
             facecolor='r', edgecolor='none')
+
+
+def multivariate_same_axis(ax, ts, data, scales, spacing, colors, z_orders=None, **plot_kwargs):
+    """
+    Plot multiple multivariate time-series on the same axis object.
+
+    :param ax: axis object
+    :param ts: 1D time array
+    :param data: list of arrays; each array should have time steps along dim 0
+    :param scales: scaling parameters
+    :param spacing: spacing between variables
+    :param colors: colors for each time-series
+    :param z_orders: orders of appearance on page
+    :return y-offsets for each row
+    """
+
+    if z_orders is None:
+
+        z_orders = range(len(data))[::-1]
+
+    # loop over data sets
+
+    for datum, scale, color, z_order in zip(data, scales, colors, z_orders):
+
+        # loop over columns of data set
+
+        for ctr, col in enumerate(datum.T):
+
+            y_coords = col / scale + ctr * spacing
+
+            ax.plot(ts, y_coords, color=color, zorder=z_order, **plot_kwargs)
+
+    return np.arange(len(datum.T)) * spacing
