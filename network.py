@@ -282,7 +282,7 @@ class RateBasedModel(object):
             decay = -(vs[t_ctr, :] - self.v_rests)
             recurrent = self.w.dot(rs[t_ctr, :])
             noise = np.random.normal(0, self.noises)
-            dv = (dt / self.taus) * (decay + recurrent + noise+ drive)
+            dv = (dt / self.taus) * (decay + recurrent + noise + drive)
 
             vs[t_ctr + 1, :] = vs[t_ctr, :] + dv
             rs[t_ctr + 1, :] = self.rate_from_voltage(vs[t_ctr + 1, :])
