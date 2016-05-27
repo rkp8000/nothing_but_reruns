@@ -8,6 +8,7 @@ import networkx as nx
 
 import connectivity
 import network
+from plot import multivariate_same_axis
 from plot import set_fontsize
 
 plt.style.use('ggplot')
@@ -67,8 +68,8 @@ def tree_structure_replay_demo(
         SEED,
         TAU, V_REST, V_TH, GAIN, NOISE, DT,
         BRANCH_LENGTH, W_PP, W_MP, W_PM, W_MM,
-        PULSE_START, PULSE_DURATION, INTER_PULSE_INTERVAL, PULSE_HEIGHT,
-        BRANCH_ORDER, INTER_TRAIN_INTERVAL, REPLAY_WAIT_TIME,
+        DRIVE_START, PULSE_DURATION, INTER_PULSE_INTERVAL, PULSE_HEIGHT,
+        BRANCH_ORDER, INTER_TRAIN_INTERVAL, REPLAY_PULSE_START,
         RESET_PULSE_START, RESET_PULSE_DURATION, RESET_PULSE_HEIGHT,
         FIG_SIZE, VERT_SPACING, FONT_SIZE):
     """
@@ -99,13 +100,13 @@ def tree_structure_replay_demo(
     :param W_MP: principal-to-memory weight
     :param W_PM: memory-to-principal weight
     :param W_MM: memory-to-memory weight
-    :param PULSE_START: pulse start time
+    :param DRIVE_START: time of starting pulse train drives
     :param PULSE_DURATION: pulse duration
     :param INTER_PULSE_INTERVAL: time between consecutive pulse starts
     :param PULSE_HEIGHT: pulse height
     :param BRANCH_ORDER: which order to stimulate branches in
     :param INTER_TRAIN_INTERVAL: interval between pulse train starts
-    :param REPLAY_WAIT_TIME: time between last pulse start and trigger pulse
+    :param REPLAY_PULSE_START: time to trigger the replay pulse, relative to train start
     :param RESET_PULSE_START: time of reset pulse, relative to train start
     :param RESET_PULSE_DURATION: duration of reset pulse
     :param RESET_PULSE_HEIGHT: height of reset pulse
@@ -113,6 +114,10 @@ def tree_structure_replay_demo(
     :param VERT_SPACING: spacing between neuron firing rate traces
     :param FONT_SIZE: font size
     """
+
+    def to_time_steps(interval):
+
+        return int(interval / DT)
 
     np.random.seed(SEED)
 
@@ -134,12 +139,60 @@ def tree_structure_replay_demo(
 
     # build drive sequences
 
+    drives = [np.zeros((to_time_steps(DRIVE_START), n_nodes))]
+
     for branch_idx in BRANCH_ORDER:
 
-        if branch_idx in [0, 1]:
+        drives_partial = np.zeros((to_time_steps(INTER_TRAIN_INTERVAL), n_nodes))
 
-            pass
+        branch = branches[branch_idx]
 
+        # make drive for original node sequence
+
+        for pulse_ctr, node in enumerate(branch):
+
+            pulse_start = to_time_steps(pulse_ctr * INTER_PULSE_INTERVAL)
+            pulse_end = pulse_start + to_time_steps(PULSE_DURATION)
+
+            drives_partial[pulse_start:pulse_end, node] = PULSE_HEIGHT
+
+        # make replay trigger pulse
+
+        pulse_start = to_time_steps(REPLAY_PULSE_START)
+        pulse_end = pulse_start + to_time_steps(PULSE_DURATION)
+
+        drives_partial[pulse_start:pulse_end, branch[0]] = PULSE_HEIGHT
+
+        # make reset pulse
+
+        pulse_start = to_time_steps(RESET_PULSE_START)
+        pulse_end = pulse_start + to_time_steps(RESET_PULSE_DURATION)
+
+        drives_partial[pulse_start:pulse_end, :] = RESET_PULSE_HEIGHT
+
+        drives.append(drives_partial)
+
+    # convert to one long drive array
+
+    drives = np.concatenate(drives, axis=0)
+
+    # run network
+
+    v_0s = V_REST * np.ones((n_nodes,))
+
+    vs, rs = ntwk.run(v_0s, drives, DT)
+
+    # plot things
+
+    ts = np.arange(len(rs)) * DT
+
+    fig, ax = plt.subplots(1, 1, figsize=FIG_SIZE, tight_layout=True)
+
+    multivariate_same_axis(
+        ax, ts=ts, data=[rs, drives], scales=[1, PULSE_HEIGHT], spacing=VERT_SPACING,
+        colors=['k', 'r'], lw=2)
+
+    set_fontsize(ax, FONT_SIZE)
 
 
 def chain_propagation_demo(
