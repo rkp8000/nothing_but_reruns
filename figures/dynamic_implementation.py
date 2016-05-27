@@ -323,7 +323,7 @@ def self_excitation_bistability(
 
     ax.axhline(0, color='gray', lw=2, ls='--')
     ax.set_xlabel('v (V)')
-    ax.set_ylabel('dv/dt (V/S)')
+    ax.set_ylabel('dv/dt (V/s)')
 
     ax.legend(handles=lines, loc='best')
 
