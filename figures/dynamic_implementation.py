@@ -192,6 +192,12 @@ def tree_structure_replay_demo(
         ax, ts=ts, data=[rs, drives], scales=[1, PULSE_HEIGHT], spacing=VERT_SPACING,
         colors=['k', 'r'], lw=2)
 
+    ax.set_xlim(0, DRIVE_START + INTER_TRAIN_INTERVAL*len(BRANCH_ORDER))
+    ax.set_ylim(-VERT_SPACING, n_nodes * VERT_SPACING)
+
+    ax.set_xlabel('time (s)')
+    ax.set_ylabel('node')
+
     set_fontsize(ax, FONT_SIZE)
 
 
@@ -285,5 +291,40 @@ def chain_propagation_demo(
 
     ax.set_xlabel('time (s)')
     ax.set_ylabel('node')
+
+    set_fontsize(ax, FONT_SIZE)
+
+
+def self_excitation_bistability(
+        VS, TAU, V_REST, V_TH, GAIN, W_SELFS, FIG_SIZE, FONT_SIZE):
+    """
+    Plot dv/dt vs. v for a rate-based population with several self-excitation
+    strengths.
+    """
+
+    def sigmoid(x):
+
+        return 1 / (1 + np.exp(-x))
+
+    dv_dts = []
+
+    for w_self in W_SELFS:
+
+        dv_dt = (1 / TAU) * (-(VS - V_REST) + w_self * sigmoid(GAIN * (VS - V_TH)))
+        dv_dts.append(dv_dt)
+
+    _, ax = plt.subplots(1, 1, figsize=FIG_SIZE, tight_layout=True)
+
+    lines = []
+    for w_self, dv_dt in zip(W_SELFS, dv_dts):
+
+        line, = ax.plot(VS, dv_dt, lw=3, label='W_self = {}'.format(w_self))
+        lines.append(line)
+
+    ax.axhline(0, color='gray', lw=2, ls='--')
+    ax.set_xlabel('v (V)')
+    ax.set_ylabel('dv/dt (V/S)')
+
+    ax.legend(handles=lines, loc='best')
 
     set_fontsize(ax, FONT_SIZE)
