@@ -1,4 +1,5 @@
 from __future__ import division, print_function
+import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -96,3 +97,19 @@ def multivariate_same_axis(ax, ts, data, scales, spacing, colors, z_orders=None,
             ax.plot(ts, y_coords, color=color, zorder=z_order, **plot_kwargs)
 
     return np.arange(len(datum.T)) * spacing
+
+
+def firing_rate_heat_map(ax, dt, rs, vmin=0, vmax=1):
+    """
+    Plot a heat map of firing rates
+
+    :param ax: axis object
+    """
+
+    ax.matshow(
+        rs.T, origin='lower',
+        interpolation='nearest', cmap=plt.cm.hot, vmin=vmin, vmax=vmax)
+
+    ax.set_xticklabels(ax.get_xticks() * dt)
+    ax.set_aspect('auto')
+    ax.xaxis.tick_bottom()
