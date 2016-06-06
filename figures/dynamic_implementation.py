@@ -10,8 +10,14 @@ import connectivity
 import network
 from plot import multivariate_same_axis
 from plot import set_fontsize
+from plot import firing_rate_heat_map
 
 plt.style.use('ggplot')
+
+
+def sigmoid(x):
+
+        return 1 / (1 + np.exp(-x))
 
 
 def _build_tree_structure_demo_connectivity(
@@ -64,14 +70,13 @@ def _build_tree_structure_demo_connectivity(
     return w, branches
 
 
-def tree_structure_replay_demo(
+def _tree_structure_replay_demo_simulation(
         SEED,
         TAU, V_REST, V_TH, GAIN, NOISE, DT,
         BRANCH_LENGTH, W_PP, W_MP, W_PM, W_MM,
         DRIVE_START, PULSE_DURATION, INTER_PULSE_INTERVAL, PULSE_HEIGHT,
         BRANCH_ORDER, INTER_TRAIN_INTERVAL, REPLAY_PULSE_START,
-        RESET_PULSE_START, RESET_PULSE_DURATION, RESET_PULSE_HEIGHT,
-        FIG_SIZE, VERT_SPACING, FONT_SIZE):
+        RESET_PULSE_START, RESET_PULSE_DURATION, RESET_PULSE_HEIGHT):
     """
     Demo sequential replay in a network with a basic tree-structure.
 
@@ -87,7 +92,6 @@ def tree_structure_replay_demo(
       -< * -< * -< * -< * -< * -< *
                     \
                      -< * -< * -< *
-
     :param SEED: RNG seed
     :param TAU: single node time constant
     :param V_REST: resting potential
@@ -110,9 +114,8 @@ def tree_structure_replay_demo(
     :param RESET_PULSE_START: time of reset pulse, relative to train start
     :param RESET_PULSE_DURATION: duration of reset pulse
     :param RESET_PULSE_HEIGHT: height of reset pulse
-    :param FIG_SIZE: figure size
-    :param VERT_SPACING: spacing between neuron firing rate traces
-    :param FONT_SIZE: font size
+
+    :return: n_nodes, drives, vs, rs
     """
 
     def to_time_steps(interval):
@@ -130,11 +133,11 @@ def tree_structure_replay_demo(
     # build final network
 
     ntwk = network.RateBasedModel(
-        taus=TAU*np.ones((n_nodes,)),
-        v_rests=V_REST*np.ones((n_nodes,)),
-        v_ths=V_TH*np.ones((n_nodes,)),
-        gains=GAIN*np.ones((n_nodes,)),
-        noises=NOISE*np.ones((n_nodes,)),
+        taus=TAU * np.ones((n_nodes,)),
+        v_rests=V_REST * np.ones((n_nodes,)),
+        v_ths=V_TH * np.ones((n_nodes,)),
+        gains=GAIN * np.ones((n_nodes,)),
+        noises=NOISE * np.ones((n_nodes,)),
         w=w)
 
     # build drive sequences
@@ -182,6 +185,33 @@ def tree_structure_replay_demo(
 
     vs, rs = ntwk.run(v_0s, drives, DT)
 
+    return n_nodes, drives, vs, rs
+
+
+def tree_structure_replay_demo(
+        SEED,
+        TAU, V_REST, V_TH, GAIN, NOISE, DT,
+        BRANCH_LENGTH, W_PP, W_MP, W_PM, W_MM,
+        DRIVE_START, PULSE_DURATION, INTER_PULSE_INTERVAL, PULSE_HEIGHT,
+        BRANCH_ORDER, INTER_TRAIN_INTERVAL, REPLAY_PULSE_START,
+        RESET_PULSE_START, RESET_PULSE_DURATION, RESET_PULSE_HEIGHT,
+        FIG_SIZE, VERT_SPACING, FONT_SIZE):
+    """
+    Run demo for sequential replay in tree structured network.
+    See _tree_structure_replay_demo_simulation for more details
+
+    :param FIG_SIZE: figure size
+    :param VERT_SPACING: spacing between neuron firing rate traces
+    :param FONT_SIZE: font size
+    """
+
+    n_nodes, drives, vs, rs = _tree_structure_replay_demo_simulation(
+        SEED, TAU, V_REST, V_TH, GAIN, NOISE, DT,
+        BRANCH_LENGTH, W_PP, W_MP, W_PM, W_MM,
+        DRIVE_START, PULSE_DURATION, INTER_PULSE_INTERVAL, PULSE_HEIGHT,
+        BRANCH_ORDER, INTER_TRAIN_INTERVAL, REPLAY_PULSE_START,
+        RESET_PULSE_START, RESET_PULSE_DURATION, RESET_PULSE_HEIGHT)
+
     # plot things
 
     ts = np.arange(len(rs)) * DT
@@ -199,6 +229,44 @@ def tree_structure_replay_demo(
     ax.set_ylabel('node')
 
     set_fontsize(ax, FONT_SIZE)
+
+
+def tree_structure_replay_demo_heat_map(
+        SEED,
+        TAU, V_REST, V_TH, GAIN, NOISE, DT,
+        BRANCH_LENGTH, W_PP, W_MP, W_PM, W_MM,
+        DRIVE_START, PULSE_DURATION, INTER_PULSE_INTERVAL, PULSE_HEIGHT,
+        BRANCH_ORDER, INTER_TRAIN_INTERVAL, REPLAY_PULSE_START,
+        RESET_PULSE_START, RESET_PULSE_DURATION, RESET_PULSE_HEIGHT,
+        FIG_SIZE, V_MIN, V_MAX, FONT_SIZE):
+    """
+    Run demo for sequential replay in tree structured network.
+    See _tree_structure_replay_demo_simulation for more details
+
+    :param FIG_SIZE: figure size
+    :param VERT_SPACING: spacing between neuron firing rate traces
+    :param FONT_SIZE: font size
+    """
+
+    n_nodes, drives, vs, rs = _tree_structure_replay_demo_simulation(
+        SEED, TAU, V_REST, V_TH, GAIN, NOISE, DT,
+        BRANCH_LENGTH, W_PP, W_MP, W_PM, W_MM,
+        DRIVE_START, PULSE_DURATION, INTER_PULSE_INTERVAL, PULSE_HEIGHT,
+        BRANCH_ORDER, INTER_TRAIN_INTERVAL, REPLAY_PULSE_START,
+        RESET_PULSE_START, RESET_PULSE_DURATION, RESET_PULSE_HEIGHT)
+
+    # plot things
+
+    fig, ax = plt.subplots(1, 1, figsize=FIG_SIZE, tight_layout=True)
+
+    firing_rate_heat_map(ax, DT, rs, vmin=V_MIN, vmax=V_MAX)
+
+    ax.set_xlabel('time (s)')
+    ax.set_ylabel('node')
+
+    set_fontsize(ax, FONT_SIZE)
+
+    return fig
 
 
 def chain_propagation_demo(
@@ -302,10 +370,6 @@ def self_excitation_bistability(
     strengths.
     """
 
-    def sigmoid(x):
-
-        return 1 / (1 + np.exp(-x))
-
     dv_dts = []
 
     for w_self in W_SELFS:
@@ -328,3 +392,57 @@ def self_excitation_bistability(
     ax.legend(handles=lines, loc='best')
 
     set_fontsize(ax, FONT_SIZE)
+
+
+def threshold_potential_analysis(
+        VS, V_REST, V_TH, GAIN, W_PM, W_PP, W_TOGGLE,
+        FIG_SIZE, FONT_SIZE):
+    """
+    Plot the threshold plus the various "steady" states caused by
+    different levels of input to a node.
+    """
+
+    fig, axs = plt.subplots(
+        2, 1, figsize=FIG_SIZE, sharex=True, tight_layout=True)
+
+    rs = sigmoid(GAIN * (VS - V_TH))
+
+    axs[0].plot(VS, rs, lw=3, color='b')
+    axs[0].axvline(V_REST, lw=3, color='gray', ls='--')
+    axs[0].axvline(V_REST + W_PM, lw=3, color='gray', ls='-')
+    axs[0].axvline(V_REST + W_PP, lw=3, color='k', ls='--')
+    axs[0].axvline(V_REST + W_PP + W_PM, lw=3, color='k', ls='-')
+
+    axs[1].plot(VS, rs, lw=3, color='b')
+    axs[1].axvline(V_REST + W_TOGGLE, lw=3, color='gray', ls='--')
+    axs[1].axvline(V_REST + W_PM + W_TOGGLE, lw=3, color='gray', ls='-')
+    axs[1].axvline(V_REST + W_PP + W_TOGGLE, lw=3, color='k', ls='--')
+    axs[1].axvline(V_REST + W_PP + W_PM + W_TOGGLE, lw=3, color='k', ls='-')
+
+    axs[0].set_ylabel('Firing rate')
+    axs[1].set_xlabel('Voltage (V)')
+    axs[1].set_ylabel('Firing rate')
+
+    axs[0].set_title('stimulus/memory driven')
+    axs[1].set_title('spontaneous')
+
+    axs[0].legend([
+        'firing rate',
+        'V_REST',
+        'V_REST + W_PM',
+        'V_REST + W_PP',
+        'V_REST + W_PM + W_PP'
+    ], loc='best')
+
+    for ax in axs:
+
+        set_fontsize(ax, FONT_SIZE)
+
+
+def single_ensemble_hysteresis_demo(
+        SEED,
+        TAU, V_REST, V_TH, GAIN, W_MP, W_PM, W_MM,
+        PULSE_HEIGHT_SMALL, PULSE_HEIGHT_LARGE, PULSE_DURATION, INTER_PULSE_INTERVAL,
+        SIM_DURATION, DT,
+        W_MMS_PHASE_PLOT):
+    pass
