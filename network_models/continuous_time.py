@@ -89,7 +89,7 @@ class LIFExponentialSynapsesModel(object):
 
             g, tau, w, drive = gs[syn], taus[syn], ws[syn], drives[syn]
 
-            dg = (dt / tau) * (-g + (w.dot(spikes) + drive) / dt)
+            dg = (dt / tau) * (-g + (w.dot(spikes) + drive) * tau / dt)
 
             gs[syn] += dg
 
