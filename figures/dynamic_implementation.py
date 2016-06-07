@@ -441,8 +441,242 @@ def threshold_potential_analysis(
 
 def single_ensemble_hysteresis_demo(
         SEED,
-        TAU, V_REST, V_TH, GAIN, W_MP, W_PM, W_MM,
+        TAU, V_REST, V_TH, GAIN, NOISE, DT, W_MP, W_PM, W_MM,
         PULSE_HEIGHT_SMALL, PULSE_HEIGHT_LARGE, PULSE_DURATION, INTER_PULSE_INTERVAL,
-        SIM_DURATION, DT,
-        W_MMS_PHASE_PLOT):
-    pass
+        SIM_DURATION, W_MMS_PHASE_PLOT,
+        FIG_SIZE, VERTICAL_SPACING, FONT_SIZE):
+
+    # make network
+
+    w = np.array([
+        [   0, W_PM],
+        [W_MP, W_MM],
+    ])
+
+    ntwk = network.RateBasedModel(
+        taus=TAU*np.ones((2,)),
+        v_rests=V_REST*np.ones((2,)),
+        v_ths=V_TH*np.ones((2,)),
+        gains=GAIN*np.ones((2,)),
+        noises=NOISE*np.ones((2,)),
+        w=w,
+    )
+
+    # make drive
+
+    n_steps = SIM_DURATION // DT
+
+    drives = np.zeros((n_steps, 2))
+
+    intvl = int(INTER_PULSE_INTERVAL // DT)
+    dur = int(PULSE_DURATION // DT)
+
+    # first small pulse
+
+    start = intvl
+
+    drives[start:start + dur, 0] = PULSE_HEIGHT_SMALL
+
+    # large pulse
+
+    start = 2 * intvl
+
+    drives[start:start + dur, 0] = PULSE_HEIGHT_LARGE
+
+    # second small pulse
+
+    start = 3*intvl
+
+    drives[start:start + dur, 0] = PULSE_HEIGHT_SMALL
+
+    # run simulation
+
+    v_0s = V_REST * np.ones((2,))
+
+    np.random.seed(SEED)
+
+    vs, rs = ntwk.run(v_0s, drives, DT)
+
+    ts = np.arange(n_steps) * DT
+
+    # MAKE PLOT
+
+    fig, ax = plt.subplots(
+        1, 1, facecolor='white', figsize=FIG_SIZE, tight_layout=True)
+
+    # plot stimulus
+
+    drive_plot = 2 * drives[:, 0] / PULSE_HEIGHT_LARGE
+    ax.plot(ts, drive_plot, c='r', lw=2)
+    ax.axhline(2, c='r', lw=2, ls='--')
+
+    # plot voltages
+
+    v_plot_0 = vs[:, 0] - V_REST
+    v_plot_0 /= (V_TH - V_REST)
+    v_plot_0 += 2 * VERTICAL_SPACING
+
+    ax.plot(ts, v_plot_0, c='k', lw=2)
+    ax.axhline(2 * VERTICAL_SPACING + 1, color='gray', lw=2, ls='--')
+
+    v_plot_1 = vs[:, 1] - V_REST
+    v_plot_1 /= (V_TH - V_REST)
+    v_plot_1 += VERTICAL_SPACING
+
+    ax.plot(ts, v_plot_1, c='k', lw=2)
+    ax.axhline(VERTICAL_SPACING + 1, color='gray', lw=2, ls='--')
+
+    ax.set_yticks([
+        0, 2, VERTICAL_SPACING, VERTICAL_SPACING + 1,
+        2 * VERTICAL_SPACING, 2 * VERTICAL_SPACING + 1,
+    ])
+
+    ax.set_yticklabels(
+        [0, r'$s_{max}$', r'$v_{rest}$', r'$v_{th}$', r'$v_{rest}$', r'$v_{th}$']
+    )
+
+    ax.get_yticklabels()[1].set_color('r')
+
+    ax.text(0.01, 1.2, 'stimulus', color='r', fontsize=FONT_SIZE)
+    ax.text(0.01, VERTICAL_SPACING + 1.3, 'memory unit', fontsize=FONT_SIZE)
+    ax.text(0.01, 2 * VERTICAL_SPACING + 1.3, 'primary unit', fontsize=FONT_SIZE)
+
+    ax.set_xlim(0, SIM_DURATION)
+    ax.set_ylim(0, 3.5 * VERTICAL_SPACING)
+
+    ax.set_xlabel('time (s)', color='k')
+    ax.set_ylabel('stimulus, voltage', color='k')
+
+    # plot firing rates
+
+    ax_twin = ax.twinx()
+
+    r_plot_0 = 1.5 * rs[:, 0] + 2 * VERTICAL_SPACING
+
+    ax_twin.plot(ts, r_plot_0, c='g', lw=2)
+
+    r_plot_1 = 1.5 * rs[:, 1] + VERTICAL_SPACING
+
+    ax_twin.plot(ts, r_plot_1, c='g', lw=2)
+
+    ax_twin.set_yticks([
+        VERTICAL_SPACING, VERTICAL_SPACING + 1.5,
+        2 * VERTICAL_SPACING, 2 * VERTICAL_SPACING + 1.5,
+    ])
+
+    ax_twin.set_yticklabels([0, 1, 0, 1])
+
+    ax_twin.set_ylim(0, 3.5 * VERTICAL_SPACING)
+
+    ax_twin.set_ylabel('firing rate', color='g')
+    [tl.set_color('g') for tl in ax_twin.get_yticklabels()]
+
+    set_fontsize(ax, FONT_SIZE)
+    set_fontsize(ax_twin, FONT_SIZE)
+
+    return fig
+
+
+def tree_structure_demo_global_control(
+        SEED, TAU, V_REST, V_TH, GAIN, NOISE, DT,
+        BRANCH_LENGTH, W_PP, W_MP, W_PM, W_MM,
+        DRIVE_START, PULSE_DURATION, INTER_PULSE_INTERVAL, PULSE_HEIGHT,
+        BRANCH_ORDER, INTER_TRAIN_INTERVAL, REPLAY_PULSE_START,
+        RESET_PULSE_START, RESET_PULSE_DURATION, RESET_PULSE_HEIGHT,
+        AMNESIA_PULSE_START, AMNESIA_PULSE_DURATION, AMNESIA_PULSE_HEIGHT,
+        SPONTANEOUS_PULSE_START, SPONTANEOUS_PULSE_DURATION, SPONTANEOUS_PULSE_HEIGHT,
+        SIM_DURATION, FIG_SIZE, V_MIN, V_MAX, FONT_SIZE):
+
+    def to_time_steps(interval):
+        return int(interval / DT)
+
+    np.random.seed(SEED)
+
+    w, branches = _build_tree_structure_demo_connectivity(
+        branch_length=BRANCH_LENGTH,
+        w_pp=W_PP, w_mp=W_MP, w_pm=W_PM, w_mm=W_MM)
+
+    n_nodes = w.shape[0]
+
+    # build final network
+
+    ntwk = network.RateBasedModel(
+        taus=TAU * np.ones((n_nodes,)),
+        v_rests=V_REST * np.ones((n_nodes,)),
+        v_ths=V_TH * np.ones((n_nodes,)),
+        gains=GAIN * np.ones((n_nodes,)),
+        noises=NOISE * np.ones((n_nodes,)),
+        w=w)
+
+    # build drive sequences
+
+    drives = [np.zeros((to_time_steps(DRIVE_START), n_nodes))]
+
+    for branch_idx in BRANCH_ORDER:
+
+        drives_partial = np.zeros((to_time_steps(INTER_TRAIN_INTERVAL), n_nodes))
+
+        branch = branches[branch_idx]
+
+        # make drive for original node sequence
+
+        for pulse_ctr, node in enumerate(branch):
+            pulse_start = to_time_steps(pulse_ctr * INTER_PULSE_INTERVAL)
+            pulse_end = pulse_start + to_time_steps(PULSE_DURATION)
+
+            drives_partial[pulse_start:pulse_end, node] = PULSE_HEIGHT
+
+        # make replay trigger pulse
+
+        pulse_start = to_time_steps(REPLAY_PULSE_START)
+        pulse_end = pulse_start + to_time_steps(PULSE_DURATION)
+
+        drives_partial[pulse_start:pulse_end, branch[0]] = PULSE_HEIGHT
+
+        # make reset pulse
+
+        pulse_start = to_time_steps(RESET_PULSE_START)
+        pulse_end = pulse_start + to_time_steps(RESET_PULSE_DURATION)
+
+        drives_partial[pulse_start:pulse_end, :] = RESET_PULSE_HEIGHT
+
+        drives.append(drives_partial)
+
+    # convert to one long drive array
+
+    drives_temp = np.concatenate(drives, axis=0)
+    drives = np.zeros((to_time_steps(SIM_DURATION), n_nodes))
+    drives[:len(drives_temp), :] = drives_temp
+
+    # add in global signals
+
+    # amnesia pulse (inhibitory input to memory units)
+
+    start = to_time_steps(AMNESIA_PULSE_START)
+    end = start + to_time_steps(AMNESIA_PULSE_DURATION)
+    drives[start:end, n_nodes/2:] = AMNESIA_PULSE_HEIGHT
+
+    # spontaneous pulse
+
+    start = to_time_steps(SPONTANEOUS_PULSE_START)
+    end = start + to_time_steps(SPONTANEOUS_PULSE_DURATION)
+    drives[start:end, :n_nodes/2] = SPONTANEOUS_PULSE_HEIGHT
+
+    # run network
+
+    v_0s = V_REST * np.ones((n_nodes,))
+
+    vs, rs = ntwk.run(v_0s, drives, DT)
+
+    # plot things
+
+    fig, ax = plt.subplots(1, 1, figsize=FIG_SIZE, tight_layout=True)
+
+    firing_rate_heat_map(ax, DT, rs, vmin=V_MIN, vmax=V_MAX)
+
+    ax.set_xlabel('time (s)')
+    ax.set_ylabel('node')
+
+    set_fontsize(ax, FONT_SIZE)
+
+    return fig
