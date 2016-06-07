@@ -150,7 +150,7 @@ class LIFExponentialSynapsesModel(object):
 
         # extract some basic metadata
 
-        self.n_cells = len(self.ws.items()[0])
+        self.n_cells = len(self.ws.values()[0])
         self.syns = self.taus_syn.keys()
 
     def run(self, initial_conditions, drives, dt, record=('spikes')):
