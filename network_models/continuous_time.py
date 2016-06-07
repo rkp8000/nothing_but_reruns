@@ -74,14 +74,68 @@ class LIFExponentialSynapsesModel(object):
 
     :param v_th: threshold potential
     :param v_reset: reset potential
-    :param refractory_period: refractory period
+    :param refrac_per: refractory period
 
     :param ws: dict of weight matrices for different synapse types
     """
 
+    @staticmethod
+    def update_conductances(gs, taus, ws, spikes, drives, dt):
+        """
+        Update conductances according to exponential ODE.
+        """
+
+        for syn in gs.keys():
+
+            g, tau, w, drive = gs[syn], taus[syn], ws[syn], drives[syn]
+
+            dg = (dt / tau) * (-g + (w.dot(spikes) + drive) / dt)
+
+            gs[syn] += dg
+
+        return gs
+
+    @staticmethod
+    def update_voltages(vs, tau_m, gs, v_revs, v_rest, dt):
+        """
+        Update voltages according to exponential ODE.
+        """
+
+        inputs = np.array([g * (v_revs[syn] - vs) for syn, g in gs.items()])
+
+        dv = (dt / tau_m) * (v_rest - vs + inputs.sum())
+
+        return vs + dv
+
+    @staticmethod
+    def record_measurements(
+            measurements, variables, t_ctr,
+            spikes, voltages, refractory_counters, conductances):
+
+        for variable in variables:
+
+            if variable == 'spikes':
+
+                measurements[variable][t_ctr, :] = spikes
+
+            elif variable == 'voltages':
+
+                measurements[variable][t_ctr, :] = voltages
+
+            elif variable == 'refrac_ctrs':
+
+                measurements[variable][t_ctr, :] = refractory_counters
+
+            elif 'conductances' in variable:
+
+                for key in measurements[variable].keys():
+                    measurements[variable][key][t_ctr, :] = conductances[key]
+
+        return measurements
+
     def __init__(
             self, v_rest, tau_m, taus_syn, v_revs_syn,
-            v_th, v_reset, refractory_period, ws):
+            v_th, v_reset, refrac_per, ws):
 
         self.v_rest = v_rest
         self.tau_m = tau_m
@@ -91,64 +145,93 @@ class LIFExponentialSynapsesModel(object):
         self.v_th = v_th
         self.v_reset = v_reset
 
-        self.refractory_period = refractory_period
+        self.refrac_per = refrac_per
         self.ws = ws
 
         # extract some basic metadata
 
-        self.n_cells = len(self.ws.items()[1])
-        self.synapses = self.taus_syn.keys()
+        self.n_cells = len(self.ws.items()[0])
+        self.syns = self.taus_syn.keys()
 
     def run(self, initial_conditions, drives, dt, record=('spikes')):
         """
         Run a simulation
 
-        :param initial_conditions:
-        :param drives:
-        :param dt:
-        :param record:
-        :return:
+        :param initial_conditions: dict of initial voltages, conductances, and refractory periods
+        :param drives: drives to each type of synapse at each neuron at each time point
+        :param dt: integration time step
+        :param record: tuple of variables to record, options are:
+            spikes, voltages, refrac_ctrs, conductances
+        :return: dictionary of measured variables at each time step
         """
 
-        n_steps = np.max([drive.shape[0] for k, drive in drives.items()])
-
-        rp_dt = self.refractory_period // dt
+        n_steps = np.max([drive.shape[0] for drive in drives.values()])
 
         # set initial conditions
 
         vs = initial_conditions['voltages']
-        gs = {key: initial_conditions['conductances'][key] for key in self.synapses}
-        rp_ctrs = initial_conditions['refractorinesses'] // dt
-        spikes = np.zeros((self.n_cells,))
+        gs = {syn: initial_conditions['conductances'][syn] for syn in self.syns}
+        rp_ctrs = initial_conditions['refrac_ctrs'] // dt
+        spikes = (vs > self.v_th).astype(float)
 
-        # allocate space for variables and run simulation
+        # allocate space for variables to be measured
 
-        measurements = {key: np.zeros((n_steps, self.n_cells))}
+        measurements = {}
+
+        for variable in record:
+
+            if variable != 'conductances':
+
+                measurements[variable] = np.zeros((n_steps + 1, self.n_cells))
+
+            else:
+
+                measurements[variable] = {
+                    key: np.zeros((n_steps + 1, self.n_cells))
+                    for key in self.syns
+                }
+
+        # record initial measurements
+
+        self.record_measurements(measurements, record, 0,
+            spikes, vs, rp_ctrs, gs)
+
+        # run simulation
 
         for t_ctr in range(n_steps):
 
+            # decrement nonzero refractory periods
+
+            rp_ctrs[rp_ctrs > 0] -= 1
+
+            # get drives for this time step
+
+            drive = {syn: drives[syn][t_ctr] for syn in self.syns}
+
             # calculate conductances for all cells
 
-
+            gs = self.update_conductances(gs, self.taus_syn, self.ws, spikes, drive, dt)
 
             # calculate voltage change for all cells
 
+            vs = self.update_voltages(vs, self.tau_m, gs, self.v_revs_syn, self.v_rest, dt)
+
+            # set voltage of refractory neurons to reset potential
+
+            vs[rp_ctrs > 0] = self.v_reset
+
+            # detect spikes, reset voltages, and set refractory periods
+
+            spikes = vs > self.v_th
+            vs[spikes] = self.v_reset
+            rp_ctrs[spikes] = self.refrac_per // dt
+            spikes = spikes.astype(float)
+
             # record desired variables
 
-            for variable in record:
+            self.record_measurements(measurements, record, t_ctr + 1,
+                spikes, vs, rp_ctrs, gs)
 
-                if variable == 'spikes':
+        measurements['time'] = np.arange(n_steps + 1) * dt
 
-                    pass
-
-                elif variable == 'voltages':
-
-                    pass
-
-                elif variable == 'conductances':
-
-                    pass
-
-                elif variable == 'refractory_counters':
-
-                    pass
+        return measurements
