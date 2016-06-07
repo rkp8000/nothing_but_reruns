@@ -59,3 +59,96 @@ class RateBasedModel(object):
             rs[t_ctr + 1, :] = self.rate_from_voltage(vs[t_ctr + 1, :])
 
         return vs[1:], rs[1:]
+
+
+class LIFExponentialSynapsesModel(object):
+    """
+    Model network composed of leaky integrate-and-fire neurons with exponential
+    synapses. All parameters are in SI units except weights, which are in units
+    of conductance relative to the leak conductance.
+
+    :param v_rest: membrane resting potential
+    :param tau_m: membrane time constant
+    :param taus_syn: dict of synaptic time constants
+    :param v_revs_syn: dict of synaptic reveresal potentials
+
+    :param v_th: threshold potential
+    :param v_reset: reset potential
+    :param refractory_period: refractory period
+
+    :param ws: dict of weight matrices for different synapse types
+    """
+
+    def __init__(
+            self, v_rest, tau_m, taus_syn, v_revs_syn,
+            v_th, v_reset, refractory_period, ws):
+
+        self.v_rest = v_rest
+        self.tau_m = tau_m
+        self.taus_syn = taus_syn
+        self.v_revs_syn = v_revs_syn
+
+        self.v_th = v_th
+        self.v_reset = v_reset
+
+        self.refractory_period = refractory_period
+        self.ws = ws
+
+        # extract some basic metadata
+
+        self.n_cells = len(self.ws.items()[1])
+        self.synapses = self.taus_syn.keys()
+
+    def run(self, initial_conditions, drives, dt, record=('spikes')):
+        """
+        Run a simulation
+
+        :param initial_conditions:
+        :param drives:
+        :param dt:
+        :param record:
+        :return:
+        """
+
+        n_steps = np.max([drive.shape[0] for k, drive in drives.items()])
+
+        rp_dt = self.refractory_period // dt
+
+        # set initial conditions
+
+        vs = initial_conditions['voltages']
+        gs = {key: initial_conditions['conductances'][key] for key in self.synapses}
+        rp_ctrs = initial_conditions['refractorinesses'] // dt
+        spikes = np.zeros((self.n_cells,))
+
+        # allocate space for variables and run simulation
+
+        measurements = {key: np.zeros((n_steps, self.n_cells))}
+
+        for t_ctr in range(n_steps):
+
+            # calculate conductances for all cells
+
+
+
+            # calculate voltage change for all cells
+
+            # record desired variables
+
+            for variable in record:
+
+                if variable == 'spikes':
+
+                    pass
+
+                elif variable == 'voltages':
+
+                    pass
+
+                elif variable == 'conductances':
+
+                    pass
+
+                elif variable == 'refractory_counters':
+
+                    pass
