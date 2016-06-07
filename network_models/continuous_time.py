@@ -103,7 +103,7 @@ class LIFExponentialSynapsesModel(object):
 
         inputs = np.array([g * (v_revs[syn] - vs) for syn, g in gs.items()])
 
-        dv = (dt / tau_m) * (v_rest - vs + inputs.sum())
+        dv = (dt / tau_m) * (v_rest - vs + inputs.sum(0))
 
         return vs + dv
 
