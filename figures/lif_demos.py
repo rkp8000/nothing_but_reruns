@@ -433,7 +433,7 @@ def hyperexcitable_downstream_neurons_via_input_barrage(
     # build drive arrays
 
     n_steps = int(SIM_DURATION / DT)
-    n_cells = CHAIN_LENGTH + 3
+    n_cells = CHAIN_LENGTH + 4
     drives = {syn: np.zeros((n_steps, n_cells)) for syn in syns}
 
     # external drive
@@ -446,13 +446,15 @@ def hyperexcitable_downstream_neurons_via_input_barrage(
 
     # barrage drive
 
+    np.random.seed(SEED)
+
     for syn, freq in BARRAGE_FREQS.items():
 
         mean_rate = freq * DT
 
         barrage = np.random.poisson(mean_rate, (n_steps,)) * BARRAGE_STRENGTHS[syn]
 
-        drives[syn][:, -2] += barrage
+        drives[syn][:, -3] += barrage
 
     # build network
 
@@ -461,7 +463,8 @@ def hyperexcitable_downstream_neurons_via_input_barrage(
     for syn in syns:
 
         ws[syn][range(1, CHAIN_LENGTH), range(0, CHAIN_LENGTH - 1)] = W_EE[syn]
-        ws[syn][-3:-1, -4] = W_EE[syn]
+        ws[syn][-4:-2, -5] = W_EE[syn]
+        ws[syn][-2, -4:-2] = W_EE[syn]
         ws[syn][-1, :-1] = W_IE[syn]
         ws[syn][:-1, -1] = W_EI[syn]
         ws[syn][-1, -1] = W_II[syn]
@@ -483,8 +486,6 @@ def hyperexcitable_downstream_neurons_via_input_barrage(
     record = ('voltages', 'spikes', 'conductances')
 
     # run simulation
-
-    np.random.seed(SEED)
 
     measurements = ntwk.run(initial_conditions, drives, DT, record=record)
 
@@ -510,7 +511,7 @@ def hyperexcitable_downstream_neurons_via_input_barrage(
 
     axs[0].legend(['E_{}'.format(ctr) for ctr in range(n_cells - 1)] + ['I'])
 
-    for cell_ctr, ax in zip([-3, -2], axs[1:]):
+    for cell_ctr, ax in zip([-4, -3], axs[1:]):
 
         for syn in syns:
 
