@@ -528,3 +528,149 @@ def hyperexcitable_downstream_neurons_via_input_barrage(
         set_fontsize(ax, FONT_SIZE)
 
     return fig
+
+
+def hyperexcitable_downstream_neuron_via_self_sustaining_input(
+        SEED, V_REST, V_TH, V_RESET, REFRAC_PER, TAU_M, TAUS_SYN, V_REVS_SYN,
+        CHAIN_LENGTH, N_CELLS_MEMORY, P_CONNECT_MEMORY,
+        W_EE, W_IE, W_EI, W_II, W_EE_MEMORY, W_MEMORY_OUTPUT,
+        DRIVE_STRENGTHS, DRIVE_TIMES, SIM_DURATION, DT,
+        FIG_SIZE, FONT_SIZE, COLORS):
+
+    syns = TAUS_SYN.keys()
+
+    # build drive arrays
+
+    n_steps = int(SIM_DURATION / DT)
+    n_cells = CHAIN_LENGTH + 4 + N_CELLS_MEMORY
+    drives = {syn: np.zeros((n_steps, n_cells)) for syn in syns}
+
+    # external drive
+
+    for syn, drive_times in DRIVE_TIMES.items():
+
+        for t in drive_times:
+
+            drives[syn][int(t / DT), 0] = DRIVE_STRENGTHS[syn]
+
+    # set up weight matrix
+
+    ws = {syn: np.zeros((n_cells, n_cells)) for syn in syns}
+
+    for syn in syns:
+
+        # diverging chain
+
+        ws[syn][range(1, CHAIN_LENGTH), range(0, CHAIN_LENGTH - 1)] = W_EE[syn]
+        ws[syn][CHAIN_LENGTH:CHAIN_LENGTH + 2, CHAIN_LENGTH - 1] = W_EE[syn]
+        ws[syn][CHAIN_LENGTH + 2, CHAIN_LENGTH:CHAIN_LENGTH + 2] = W_EE[syn]
+
+        # inhibitory connections
+
+        ws[syn][:CHAIN_LENGTH + 3, -1] = W_EI[syn]
+        ws[syn][-1, :CHAIN_LENGTH + 3] = W_IE[syn]
+
+        # self-sustaining excitatory group
+
+        cxn_mask = np.random.rand(N_CELLS_MEMORY, N_CELLS_MEMORY) < P_CONNECT_MEMORY[syn]
+
+        np.fill_diagonal(cxn_mask, 0)
+
+        ws[syn][CHAIN_LENGTH + 3:-1, CHAIN_LENGTH + 3:-1] = W_EE_MEMORY[syn]
+
+        # projection of self-sustaining excitatory to hyperexcitable cell
+
+        ws[syn][CHAIN_LENGTH, CHAIN_LENGTH + 3:-1] = W_MEMORY_OUTPUT[syn]
+
+    # make network
+
+    ntwk = LIFExponentialSynapsesModel(
+        v_rest=V_REST, tau_m=TAU_M, taus_syn=TAUS_SYN, v_revs_syn=V_REVS_SYN,
+        v_th=V_TH, v_reset=V_RESET, refrac_per=REFRAC_PER, ws=ws)
+
+    # set initial conditions for variables
+    voltages_initial = V_REST * np.ones((n_cells,))
+    voltages_initial[CHAIN_LENGTH + 3:-1] = V_TH + .001
+
+    initial_conditions = {
+        'voltages': voltages_initial,
+        'conductances': {syn: np.zeros((n_cells,)) for syn in syns},
+        'refrac_ctrs': np.zeros((n_cells,)),
+    }
+
+    # set desired measurables
+
+    record = ('voltages', 'spikes', 'conductances')
+
+    # run simulation
+
+    measurements = ntwk.run(initial_conditions, drives, DT, record=record)
+
+    # MAKE PLOTS
+
+    fig, axs = plt.subplots(3, 1, figsize=FIG_SIZE, sharex=True, tight_layout=True)
+
+    # plot excitatory chain cell voltages
+
+    all_voltages = measurements['voltages'].T
+    voltages_to_plot = all_voltages[:CHAIN_LENGTH + 3]
+
+    for voltages, color in zip(voltages_to_plot, COLORS):
+
+        axs[0].plot(measurements['time'], voltages, color=color, lw=2)
+
+    # plot inhibitory voltage
+
+    axs[0].plot(measurements['time'], all_voltages[-1], color='r', lw=2)
+
+    # plot spikes
+
+    all_spikes = measurements['spikes'].T
+    excitatory_chain_spikes = all_spikes[:CHAIN_LENGTH + 3]
+
+    for cell_ctr, (spikes, color) in enumerate(zip(excitatory_chain_spikes, COLORS)):
+
+        spike_times = measurements['time'][spikes.astype(bool)]
+        ys = V_TH * np.ones((len(spike_times))) + 0.01 + 0.005 * cell_ctr
+
+        axs[0].scatter(spike_times, ys, s=200, c=color, marker='*')
+
+    # plot self-sustaining spikes
+
+    self_sustaining_spikes = all_spikes[CHAIN_LENGTH + 3:-1]
+
+    for cell_ctr, spikes in enumerate(self_sustaining_spikes):
+
+        spike_times = measurements['time'][spikes.astype(bool)]
+        ys = V_TH * np.ones((len(spike_times))) + 0.01 + 0.005 * (CHAIN_LENGTH + 3 + cell_ctr)
+
+        axs[0].scatter(spike_times, ys, s=200, c='gray', marker='*')
+
+    # plot inhibitory spikes
+
+    spike_times = measurements['time'][all_spikes[-1].astype(bool)]
+    ys = V_TH * np.ones((len(spike_times))) + 0.01 + 0.005 * n_cells
+
+    axs[0].scatter(spike_times, ys, s=200, c='r', marker='*')
+
+    axs[0].set_ylabel('voltage (V)')
+
+    axs[0].legend(['E_{}'.format(ctr) for ctr in range(CHAIN_LENGTH + 3)] + ['I'])
+
+    for cell_ctr, ax in zip([CHAIN_LENGTH, CHAIN_LENGTH + 1], axs[1:]):
+
+        for syn in syns:
+
+            ax.plot(measurements['time'], measurements['conductances'][syn][:, cell_ctr], lw=2)
+
+        ax.set_ylabel('conductances')
+
+    axs[-1].legend([syn.upper() for syn in syns])
+
+    axs[-1].set_xlabel('time (s)')
+
+    for ax in axs:
+
+        set_fontsize(ax, FONT_SIZE)
+
+    return fig
