@@ -224,6 +224,7 @@ def three_neuron_eei_circuit(
     # plot voltage
 
     for voltages, color in zip(measurements['voltages'].T, COLORS):
+
         axs[0].plot(measurements['time'], voltages, color=color, lw=2)
 
     # plot spikes
@@ -274,6 +275,7 @@ def multineuron_chain_ei_circuit(
     for syn, drive_times in DRIVE_TIMES.items():
 
         for t in drive_times:
+
             drives[syn][int(t / DT), 0] = DRIVE_STRENGTHS[syn]
 
     # build network
@@ -316,17 +318,99 @@ def multineuron_chain_ei_circuit(
     # plot voltage
 
     for voltages, color in zip(measurements['voltages'].T, COLORS):
+
         ax.plot(measurements['time'], voltages, color=color, lw=2)
 
     # plot spikes
 
     for neuron_ctr, (spikes, color) in enumerate(zip(measurements['spikes'].T, COLORS)):
+
         spike_times = measurements['time'][spikes.astype(bool)]
         ys = V_TH * np.ones((len(spike_times))) + 0.01
 
         ax.scatter(spike_times, ys, s=200, c=color, marker='*')
 
     ax.legend(['E_{}'.format(ctr) for ctr in range(N_E_NEURONS)] + ['I'])
+
+    ax.set_xlabel('time (s)')
+    ax.set_ylabel('voltage (V)')
+
+    set_fontsize(ax, FONT_SIZE)
+
+    return fig
+
+
+def self_sustaining_excitation_among_e_cells(
+        SEED, V_REST, V_TH, V_RESET, REFRAC_PER, TAU_M, TAUS_SYN, V_REVS_SYN,
+        N_NEURONS,
+        W_EE, P_CONNECT,
+        DRIVE_STRENGTHS, DRIVE_TIMES, SIM_DURATION, DT,
+        FIG_SIZE, FONT_SIZE):
+
+    syns = TAUS_SYN.keys()
+
+    # build drive arrays
+
+    n_steps = int(SIM_DURATION / DT)
+    drives = {syn: np.zeros((n_steps, N_NEURONS)) for syn in syns}
+
+    for syn, drive_times in DRIVE_TIMES.items():
+
+        for t in drive_times:
+
+            drives[syn][int(t / DT), :] = DRIVE_STRENGTHS[syn]
+
+    # build network
+
+    ws = {syn: np.zeros((N_NEURONS, N_NEURONS)) for syn in syns}
+
+    np.random.seed(SEED)
+
+    for syn in syns:
+
+        cxn_mask = np.random.rand(N_NEURONS, N_NEURONS) < P_CONNECT[syn]
+        np.fill_diagonal(cxn_mask, 0)
+
+        ws[syn][cxn_mask] = W_EE[syn]
+
+    ntwk = LIFExponentialSynapsesModel(
+        v_rest=V_REST, tau_m=TAU_M, taus_syn=TAUS_SYN, v_revs_syn=V_REVS_SYN,
+        v_th=V_TH, v_reset=V_RESET, refrac_per=REFRAC_PER, ws=ws)
+
+    # set initial conditions for variables
+
+    initial_conditions = {
+        'voltages': V_REST * np.ones((N_NEURONS,)),
+        'conductances': {syn: np.zeros((N_NEURONS,)) for syn in syns},
+        'refrac_ctrs': np.zeros((N_NEURONS,)),
+    }
+
+    # set desired measurables
+
+    record = ('voltages', 'spikes', 'conductances')
+
+    # run simulation
+
+    measurements = ntwk.run(initial_conditions, drives, DT, record=record)
+
+    # MAKE PLOTS
+
+    fig, ax = plt.subplots(1, 1, figsize=FIG_SIZE, sharex=True, tight_layout=True)
+
+    # plot voltage
+
+    for voltages in measurements['voltages'].T:
+
+        ax.plot(measurements['time'], voltages, color='k', lw=2)
+
+    # plot spikes
+
+    for neuron_ctr, spikes in enumerate(measurements['spikes'].T):
+
+        spike_times = measurements['time'][spikes.astype(bool)]
+        ys = V_TH * np.ones((len(spike_times))) + 0.01
+
+        ax.scatter(spike_times, ys, s=200, c='k', marker='*')
 
     ax.set_xlabel('time (s)')
     ax.set_ylabel('voltage (V)')
