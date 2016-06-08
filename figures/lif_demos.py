@@ -418,3 +418,112 @@ def self_sustaining_excitation_among_e_cells(
     set_fontsize(ax, FONT_SIZE)
 
     return fig
+
+
+def hyperexcitable_downstream_neurons_via_input_barrage(
+        SEED, V_REST, V_TH, V_RESET, REFRAC_PER, TAU_M, TAUS_SYN, V_REVS_SYN,
+        CHAIN_LENGTH,
+        W_EE, W_IE, W_EI, W_II,
+        BARRAGE_FREQS, BARRAGE_STRENGTHS,
+        DRIVE_STRENGTHS, DRIVE_TIMES, SIM_DURATION, DT,
+        FIG_SIZE, FONT_SIZE, COLORS):
+
+    syns = TAUS_SYN.keys()
+
+    # build drive arrays
+
+    n_steps = int(SIM_DURATION / DT)
+    n_cells = CHAIN_LENGTH + 3
+    drives = {syn: np.zeros((n_steps, n_cells)) for syn in syns}
+
+    # external drive
+
+    for syn, drive_times in DRIVE_TIMES.items():
+
+        for t in drive_times:
+
+            drives[syn][int(t / DT), 0] = DRIVE_STRENGTHS[syn]
+
+    # barrage drive
+
+    for syn, freq in BARRAGE_FREQS.items():
+
+        mean_rate = freq * DT
+
+        barrage = np.random.poisson(mean_rate, (n_steps,)) * BARRAGE_STRENGTHS[syn]
+
+        drives[syn][:, -2] += barrage
+
+    # build network
+
+    ws = {syn: np.zeros((n_cells, n_cells)) for syn in syns}
+
+    for syn in syns:
+
+        ws[syn][range(1, CHAIN_LENGTH), range(0, CHAIN_LENGTH - 1)] = W_EE[syn]
+        ws[syn][-3:-1, -4] = W_EE[syn]
+        ws[syn][-1, :-1] = W_IE[syn]
+        ws[syn][:-1, -1] = W_EI[syn]
+        ws[syn][-1, -1] = W_II[syn]
+
+    ntwk = LIFExponentialSynapsesModel(
+        v_rest=V_REST, tau_m=TAU_M, taus_syn=TAUS_SYN, v_revs_syn=V_REVS_SYN,
+        v_th=V_TH, v_reset=V_RESET, refrac_per=REFRAC_PER, ws=ws)
+
+    # set initial conditions for variables
+
+    initial_conditions = {
+        'voltages': V_REST * np.ones((n_cells,)),
+        'conductances': {syn: np.zeros((n_cells,)) for syn in syns},
+        'refrac_ctrs': np.zeros((n_cells,)),
+    }
+
+    # set desired measurables
+
+    record = ('voltages', 'spikes', 'conductances')
+
+    # run simulation
+
+    np.random.seed(SEED)
+
+    measurements = ntwk.run(initial_conditions, drives, DT, record=record)
+
+    # MAKE PLOTS
+
+    fig, axs = plt.subplots(3, 1, figsize=FIG_SIZE, sharex=True, tight_layout=True)
+
+    # plot voltage
+
+    for voltages, color in zip(measurements['voltages'].T, COLORS):
+        axs[0].plot(measurements['time'], voltages, color=color, lw=2)
+
+    # plot spikes
+
+    for cell_ctr, (spikes, color) in enumerate(zip(measurements['spikes'].T, COLORS)):
+
+        spike_times = measurements['time'][spikes.astype(bool)]
+        ys = V_TH * np.ones((len(spike_times))) + 0.01 + 0.005 * cell_ctr
+
+        axs[0].scatter(spike_times, ys, s=200, c=color, marker='*')
+
+    axs[0].set_ylabel('voltage (V)')
+
+    axs[0].legend(['E_{}'.format(ctr) for ctr in range(n_cells - 1)] + ['I'])
+
+    for cell_ctr, ax in zip([-3, -2], axs[1:]):
+
+        for syn in syns:
+
+            ax.plot(measurements['time'], measurements['conductances'][syn][:, cell_ctr], lw=2)
+
+        ax.set_ylabel('conductances')
+
+    axs[-1].legend([syn.upper() for syn in syns])
+
+    axs[-1].set_xlabel('time (s)')
+
+    for ax in axs:
+
+        set_fontsize(ax, FONT_SIZE)
+
+    return fig
