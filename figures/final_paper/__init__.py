@@ -1,10 +1,16 @@
 from __future__ import division, print_function
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy import stats
+
+from connectivity import feed_forward_grid, er_directed
+
+import metrics
 
 from network import LIFExponentialSynapsesModel
 from network import SoftmaxWTAWithLingeringHyperexcitability
 
+from plot import fancy_raster, fancy_raster_arrows_above
 from plot import multivariate_same_axis
 from plot import set_fontsize
 
@@ -241,6 +247,7 @@ def lif_demo_two_branches(
     axs[-1].set_xlabel('time (s)')
 
     for ax in axs:
+
         set_fontsize(ax, FONT_SIZE)
 
     return fig
@@ -439,3 +446,512 @@ def lif_demo_two_branches_global_controls(
         set_fontsize(ax, FONT_SIZE)
 
     return fig
+
+
+def simplified_ff_replay_example(
+        SEED, GRID_SHAPE, LATERAL_SPREAD, G_W, G_X, G_D, T_X,
+        DRIVEN_NODES, DRIVE_AMPLITUDE, SPONTANEOUS_RUN_TIME,
+        AX_SIZE, Y_LIM, FONT_SIZE):
+    """
+    Show a few examples of how a basic network with activation-dependent lingering hyperexcitability
+    with a feed forward architecture can replay certain sequences.
+    """
+
+    def make_feed_forward_grid_weights(shape, spread):
+        """
+        Create a weight matrix corresponding to a network of feed-forward layers, with lateral
+        spread from each node over nodes in the successive layer.
+        :param shape: grid shape of the network (n_rows, n_cols)
+        :param spread: size of lateral spread (1 = no lateral spread)
+        :return: weight matrix (rows are targs, cols are srcs)
+        """
+
+        w = feed_forward_grid(shape=shape, spread=1)
+        w += feed_forward_grid(shape=shape, spread=spread)
+
+        w = (w > 0).astype(float)
+
+        return w
+
+    # RUN SIMULATION
+
+    np.random.seed(SEED)
+    n_trials = len(DRIVEN_NODES)
+
+    # make network
+
+    w = make_feed_forward_grid_weights(GRID_SHAPE, LATERAL_SPREAD)
+    ntwk = SoftmaxWTAWithLingeringHyperexcitability(w=w, g_w=G_W, g_x=G_X, g_d=G_D, t_x=T_X)
+
+    n_nodes = w.shape[0]
+
+    # loop over trials
+
+    all_drives = []
+    all_rs = []
+
+    for driven_nodes_one_trial in DRIVEN_NODES:
+
+        run_time = 2 * len(driven_nodes_one_trial)
+
+        # make drive sequence
+
+        drives = np.zeros((run_time, n_nodes), dtype=float)
+
+        for t, node in enumerate(driven_nodes_one_trial):
+
+            drives[t, node] = DRIVE_AMPLITUDE
+
+        drives[len(driven_nodes_one_trial), driven_nodes_one_trial[0]] = DRIVE_AMPLITUDE
+
+        # run network
+
+        r_0 = np.zeros((n_nodes,))
+        xc_0 = np.zeros((n_nodes,))
+        rs = ntwk.run(r_0=r_0, drives=drives, xc_0=xc_0)
+
+        all_drives.append(drives)
+        all_rs.append(rs)
+
+    # make spontaneous example
+
+    drives_spontaneous = np.zeros((SPONTANEOUS_RUN_TIME, n_nodes), dtype=float)
+    nonzero_drives_spontaneous = all_drives[0][:len(driven_nodes_one_trial)]
+
+    drives_spontaneous[:len(nonzero_drives_spontaneous)] = nonzero_drives_spontaneous
+
+    # run network
+
+    r_0_spontaneous = np.zeros((n_nodes,))
+    xc_0_spontaneous = np.zeros((n_nodes,))
+    rs_spontaneous = ntwk.run(r_0=r_0_spontaneous, drives=drives_spontaneous, xc_0=xc_0_spontaneous)
+
+    # MAKE PLOTS
+
+    fig = plt.figure(
+        figsize=(AX_SIZE[0] * (n_trials + 2), AX_SIZE[1]), facecolor='white',
+        tight_layout=True)
+    axs = []
+
+    axs.append(fig.add_subplot(1, 4, 1))
+    axs.append(fig.add_subplot(1, 4, 2, sharey=axs[0]))
+
+    axs.append(fig.add_subplot(1, 2, 2, sharey=axs[0]))
+
+    for ax, drives, rs in zip(axs[:-1], all_drives, all_rs):
+
+        fancy_raster_arrows_above(ax, rs, drives, spike_marker_size=40, arrow_marker_size=80, rise=6)
+
+        x_fill = np.linspace(-1, np.sum(drives > 0) - 1.5, 3, endpoint=True)
+        y_fill_lower = -1 * np.ones(x_fill.shape)
+        y_fill_upper = n_nodes * np.ones(x_fill.shape)
+
+        ax.fill_between(x_fill, y_fill_lower, y_fill_upper, color='red', alpha=0.1)
+
+    fancy_raster_arrows_above(
+        axs[-1], rs_spontaneous, drives_spontaneous,
+        spike_marker_size=40, arrow_marker_size=80, rise=6)
+
+    x_fill = np.linspace(-1, np.sum(all_drives[0] > 0) - 1.5, 3, endpoint=True)
+    y_fill_lower = -1 * np.ones(x_fill.shape)
+    y_fill_upper = n_nodes * np.ones(x_fill.shape)
+
+    axs[-1].fill_between(x_fill, y_fill_lower, y_fill_upper, color='red', alpha=0.1)
+
+    for ax_ctr, ax in enumerate(axs):
+
+        if ax_ctr < len(axs) - 1:
+
+            ax.set_xlim(-1, 2 * len(DRIVEN_NODES[0]))
+            ax.set_xticks([0, 4, 8, 12])
+
+        else:
+
+            ax.set_xlim(-1, SPONTANEOUS_RUN_TIME)
+
+        ax.set_ylim(Y_LIM)
+
+        ax.set_xlabel('time step')
+
+        if ax_ctr == 0:
+
+            ax.set_ylabel('ensemble')
+
+        if ax_ctr < len(axs) - 1:
+
+            ax.set_title('Triggered replay {}'.format(ax_ctr + 1))
+
+        else:
+
+            ax.set_title('Spontaneous replay')
+
+        set_fontsize(ax, FONT_SIZE)
+
+    return fig
+
+
+def simplified_ff_properties(
+        SEED, GRID_SHAPE, LATERAL_SPREAD, G_W, G_X, G_D, T_X,
+        DRIVE_0, DRIVE_1A, DRIVE_1B, N_REPEATS,
+        FOCUSED_STIM_0, FOCUSED_STIM_1, DISTRIBUTED_STIM,
+        Y_MAX_DISTRIBUTED_STIM,
+        FIG_SIZE, FONT_SIZE):
+    """
+    Demonstrate some properties of the simplified feed-forward network.
+
+    1. Multiple sequences can be stored if they don't overlap.
+    2. When they overlap the replay will be mixed and matched.
+    3. Previous activation patterns and the hyperexcitability they elicit can bias network
+    response to unfocused stimuli.
+    """
+
+    def make_feed_forward_grid_weights(shape, spread):
+        """
+        Create a weight matrix corresponding to a network of feed-forward layers, with lateral
+        spread from each node over nodes in the successive layer.
+        :param shape: grid shape of the network (n_rows, n_cols)
+        :param spread: size of lateral spread (1 = no lateral spread)
+        :return: weight matrix (rows are targs, cols are srcs)
+        """
+
+        w = feed_forward_grid(shape=shape, spread=1)
+        w += feed_forward_grid(shape=shape, spread=spread)
+
+        w = (w > 0).astype(float)
+
+        return w
+
+    np.random.seed(SEED)
+
+    w = make_feed_forward_grid_weights(GRID_SHAPE, LATERAL_SPREAD)
+    ntwk = SoftmaxWTAWithLingeringHyperexcitability(w=w, g_w=G_W, g_x=G_X, g_d=G_D, t_x=T_X)
+
+    n_nodes = w.shape[0]
+
+    # first demonstration
+
+    # build drive array
+
+    trigger_0 = [DRIVE_0[0]] + (len(DRIVE_0) - 1) * [None]
+    trigger_1A = [DRIVE_1A[0]] + (len(DRIVE_1A) - 1) * [None]
+    trigger_seq = N_REPEATS * (trigger_0 + trigger_1A)
+
+    drive_seq_non_ovlp = np.concatenate([DRIVE_0, DRIVE_1A, trigger_seq])
+
+    drives_non_ovlp = np.zeros((len(drive_seq_non_ovlp), n_nodes))
+
+    for t, node in enumerate(drive_seq_non_ovlp):
+
+        if node is not None:
+
+            drives_non_ovlp[t, node] = 1
+
+    # run network
+
+    r_0 = np.zeros((n_nodes,))
+    xc_0 = np.zeros((n_nodes,))
+    rs_non_ovlp = ntwk.run(r_0=r_0, drives=drives_non_ovlp, xc_0=xc_0)
+
+    # second demonstration
+
+    # build drive array
+
+    trigger_0 = [DRIVE_0[0]] + (len(DRIVE_0) - 1) * [None]
+    trigger_1B = [DRIVE_1B[0]] + (len(DRIVE_1B) - 1) * [None]
+    trigger_seq = N_REPEATS * (trigger_0 + trigger_1B)
+
+    drive_seq_ovlp = np.concatenate([DRIVE_0, DRIVE_1B, trigger_seq])
+
+    drives_ovlp = np.zeros((len(drive_seq_ovlp), n_nodes))
+
+    for t, node in enumerate(drive_seq_ovlp):
+
+        if node is not None:
+
+            drives_ovlp[t, node] = 1
+
+    # run network
+
+    r_0 = np.zeros((n_nodes,))
+    xc_0 = np.zeros((n_nodes,))
+    rs_ovlp = ntwk.run(r_0=r_0, drives=drives_ovlp, xc_0=xc_0)
+
+    # third demonstration
+
+    run_time = len(FOCUSED_STIM_0) + len(DISTRIBUTED_STIM)
+
+    # when FOCUSED_STIM_0 preceds the distributed stim
+
+    drives_distributed_stim_0 = np.zeros((run_time, n_nodes))
+
+    for t, node in enumerate(FOCUSED_STIM_0):
+
+        drives_distributed_stim_0[t, node] = 1
+
+    for t, node_pair in enumerate(DISTRIBUTED_STIM):
+
+        drives_distributed_stim_0[t + len(FOCUSED_STIM_0), node_pair[0]] = 1
+        drives_distributed_stim_0[t + len(FOCUSED_STIM_0), node_pair[1]] = 1
+
+    # run network
+
+    r_0 = np.zeros((n_nodes,))
+    xc_0 = np.zeros((n_nodes,))
+    rs_distributed_stim_0 = ntwk.run(r_0=r_0, drives=drives_distributed_stim_0, xc_0=xc_0)
+
+    # when FOCUSED_STIM_1 precedes the distributed stim
+
+    drives_distributed_stim_1 = np.zeros((run_time, n_nodes))
+
+    for t, node in enumerate(FOCUSED_STIM_1):
+        drives_distributed_stim_1[t, node] = 1
+
+    for t, node_pair in enumerate(DISTRIBUTED_STIM):
+        drives_distributed_stim_1[t + len(FOCUSED_STIM_1), node_pair[0]] = 1
+        drives_distributed_stim_1[t + len(FOCUSED_STIM_1), node_pair[1]] = 1
+
+    # run network
+
+    r_0 = np.zeros((n_nodes,))
+    xc_0 = np.zeros((n_nodes,))
+    rs_distributed_stim_1 = ntwk.run(r_0=r_0, drives=drives_distributed_stim_1, xc_0=xc_0)
+
+    # MAKE PLOTS
+
+    fig, axs = plt.subplots(4, 1, figsize=FIG_SIZE, tight_layout=True)
+
+    fancy_raster_arrows_above(
+        axs[0], rs_non_ovlp, drives_non_ovlp,
+        spike_marker_size=40, arrow_marker_size=80, rise=6)
+
+    x_fill = [-0.5, 2 * len(DRIVE_0) - 0.5]
+    y_fill_lower = [-1, -1]
+    y_fill_upper = [n_nodes, n_nodes]
+
+    axs[0].fill_between(x_fill, y_fill_lower, y_fill_upper, color='red', alpha=0.1)
+
+    axs[0].set_xlim(-0.5, len(drive_seq_non_ovlp))
+    axs[0].set_ylim(-1, n_nodes)
+    axs[0].set_xlabel('time step')
+    axs[0].set_ylabel('ensemble')
+    axs[0].set_title('non-overlapping stim sequences')
+
+    fancy_raster_arrows_above(
+        axs[1], rs_ovlp, drives_ovlp,
+        spike_marker_size=40, arrow_marker_size=80, rise=6)
+
+    axs[1].fill_between(x_fill, y_fill_lower, y_fill_upper, color='red', alpha=0.1)
+
+    axs[1].set_xlim(-0.5, len(drive_seq_ovlp))
+    axs[1].set_ylim(-1, n_nodes)
+    axs[1].set_xlabel('time step')
+    axs[1].set_ylabel('ensemble')
+    axs[1].set_title('overlapping stim sequences')
+
+    fancy_raster_arrows_above(
+        axs[2], rs_distributed_stim_0, drives_distributed_stim_0,
+        spike_marker_size=40, arrow_marker_size=80, rise=2)
+
+    x_fill = [-0.5, len(FOCUSED_STIM_0) - 0.5]
+    y_fill_lower = [-1, -1]
+    y_fill_upper = [n_nodes, n_nodes]
+
+    axs[2].fill_between(x_fill, y_fill_lower, y_fill_upper, color='red', alpha=0.1)
+
+    axs[2].set_xlim(-0.5, len(drives_distributed_stim_0))
+    axs[2].set_ylim(-1, Y_MAX_DISTRIBUTED_STIM)
+    axs[2].set_xlabel('time step')
+    axs[2].set_ylabel('ensemble')
+    axs[2].set_title('distributed stimulus response following sequence 1')
+
+    fancy_raster_arrows_above(
+        axs[3], rs_distributed_stim_1, drives_distributed_stim_1,
+        spike_marker_size=40, arrow_marker_size=80, rise=2)
+
+    axs[3].fill_between(x_fill, y_fill_lower, y_fill_upper, color='red', alpha=0.1)
+
+    axs[3].set_xlim(-0.5, len(drives_distributed_stim_1))
+    axs[3].set_ylim(-1, Y_MAX_DISTRIBUTED_STIM)
+    axs[3].set_xlabel('time step')
+    axs[3].set_ylabel('ensemble')
+    axs[3].set_title('distributed stimulus response following sequence 2')
+
+    for ax in axs:
+
+        set_fontsize(ax, FONT_SIZE)
+
+    return fig
+
+
+def simplified_connectivity_dependence(
+        SEED,
+        N_NODES, P_CONNECT,
+        G_D, G_W, G_X, T_X,
+        MATCH_PROPORTIONS,
+        N_TRIALS, SEQ_LENGTHS,
+        FIG_SIZE, FONT_SIZE, COLORS):
+    """
+    Show a set of plots demonstrating how the connectivity structure in the simplified
+    model affects the model's ability to decode past and current stimuli.
+    """
+
+    # plot B: past decoding accuracy vs match proportion when mixed with random connectivity
+
+    np.random.seed(SEED)
+
+    controls = ['random', 'zero']
+
+    # the following are indexed by [seq_len][trial][match_proportion_idx]
+
+    decoding_accuracies_random = [{
+       seq_len: [[] for _ in range(N_TRIALS)]
+       for seq_len in SEQ_LENGTHS
+       } for _ in range(2)]
+
+    decoding_accuracies_zero = [{
+      seq_len: [[] for _ in range(N_TRIALS)]
+      for seq_len in SEQ_LENGTHS
+      } for _ in range(2)]
+
+    for control in controls:
+
+        ## RUN SIMULATIONS AND RECORD DECODING ACCURACIES
+
+        r_0 = np.zeros((N_NODES,))
+        xc_0 = np.zeros((N_NODES,))
+
+        for g_x_ctr, g_x in enumerate([G_X, 0]):
+
+            for tr_ctr in range(N_TRIALS):
+
+                # build original weight matrix and convert to drive transition probability distribution
+
+                w_matched = er_directed(N_NODES, P_CONNECT)
+                p_tr_drive, p_0_drive = metrics.softmax_prob_from_weights(w_matched, G_W)
+
+                # build template random or zero matrices
+
+                if control == 'random':
+
+                    w_control = er_directed(N_NODES, P_CONNECT)
+
+                elif control == 'zero':
+
+                    w_control = er_directed(N_NODES, 0)
+
+                for mp_ctr, match_proportion in enumerate(MATCH_PROPORTIONS):
+
+                    # make mixed weight matrices
+
+                    control_mask = np.random.rand(*w_matched.shape) < match_proportion
+
+                    w = w_control.copy()
+                    w[control_mask] = w_matched[control_mask]
+
+                    # make network
+
+                    ntwk = SoftmaxWTAWithLingeringHyperexcitability(
+                        w, g_d=G_D, g_w=G_W, g_x=g_x, t_x=T_X)
+
+                    # create random drive sequences
+
+                    for seq_len in SEQ_LENGTHS:
+
+                        drives = np.zeros((2 * seq_len, N_NODES))
+
+                        drive_first = np.random.choice(np.arange(N_NODES), p=p_0_drive.flatten())
+                        drives[0, drive_first] = 1
+
+                        for ctr in range(seq_len - 1):
+                            drive_last = np.argmax(drives[ctr])
+                            drive_next = np.random.choice(range(N_NODES), p=p_tr_drive[:, drive_last])
+
+                            drives[ctr + 1, drive_next] = 1
+
+                        # add trigger
+
+                        drives[seq_len, drive_first] = 1
+
+                        drive_seq = np.argmax(drives[:seq_len], axis=1)
+
+                        rs = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives)
+
+                        rs_seq = rs[seq_len:].argmax(axis=1)
+
+                        # calculate decoding accuracy
+
+                        acc = metrics.levenshtein(drive_seq, rs_seq)
+
+                        if control == 'random':
+
+                            decoding_accuracies_random[g_x_ctr][seq_len][tr_ctr].append(acc)
+
+                        elif control == 'zero':
+
+                            decoding_accuracies_zero[g_x_ctr][seq_len][tr_ctr].append(acc)
+
+    ## MAKE PLOT
+
+    fig, axs = plt.subplots(2, 2, figsize=FIG_SIZE, sharex=True, sharey=True, tight_layout=True)
+
+    for c_ctr, control in enumerate(controls):
+
+        for g_x_ctr, (g_x, ax) in enumerate(zip([G_X, 0], axs[c_ctr, :])):
+
+            handles = []
+
+            for seq_len, color in zip(SEQ_LENGTHS, COLORS):
+
+                if control == 'random':
+
+                    trials = np.array(decoding_accuracies_random[g_x_ctr][seq_len])
+
+                elif control == 'zero':
+
+                    trials = np.array(decoding_accuracies_zero[g_x_ctr][seq_len])
+
+                acc_mean = np.mean(trials, axis=0)
+                acc_sem = stats.sem(trials, axis=0)
+
+                label = 'L = {}'.format(seq_len)
+
+                handles.append(ax.plot(MATCH_PROPORTIONS, acc_mean, color=color, lw=3, label=label)[0])
+
+                ax.fill_between(
+                    MATCH_PROPORTIONS, acc_mean - acc_sem, acc_mean + acc_sem, color=color, alpha=.3)
+
+            ax.set_xlabel('match proportion\n(mixed with {} connectivity)'.format(control))
+
+            if g_x_ctr == 0:
+
+                ax.set_title('Hyperexcitability on')
+
+            elif g_x_ctr == 1:
+
+                ax.set_title('Hyperexcitability off')
+
+        axs[c_ctr, 0].set_ylabel('edit distance')
+
+
+    # plot C: past decoding accuracy vs match proportion when mixed with zero connectivity
+
+    # plot D: dependence of decoding on sparsity -- replay probability vs. sparsity and
+    # "information" per sequence replay vs. sparsity and N
+
+    for ax in axs.flat:
+        set_fontsize(ax, FONT_SIZE)
+
+    return fig
+
+
+def simplified_connectivity_dependence_current_stim_decoding(
+        SEED,
+        N_NODES, P_CONNECT):
+
+    pass
+
+    # plot B: current single-timepoint decoding accuracy with matched or half-matched connectivity
+
+    # plot C: current multi-timepoint decoding accuracy with matched or half-matched connectivity
+
+    # plot D: individual decoding accuracy traces
