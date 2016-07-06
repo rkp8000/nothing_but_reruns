@@ -789,13 +789,15 @@ def simplified_connectivity_dependence(
         G_D, G_W, G_X, T_X,
         MATCH_PROPORTIONS,
         N_TRIALS, SEQ_LENGTHS,
+        DENSITIES, SEQ_LENGTH_DENSITIES, NS,
         FIG_SIZE, FONT_SIZE, COLORS):
     """
     Show a set of plots demonstrating how the connectivity structure in the simplified
     model affects the model's ability to decode past and current stimuli.
     """
 
-    # plot B: past decoding accuracy vs match proportion when mixed with random connectivity
+    # plots B and C: past decoding accuracy vs match proportion when mixed with
+    # random and zero connectivity
 
     np.random.seed(SEED)
 
@@ -890,9 +892,27 @@ def simplified_connectivity_dependence(
 
                             decoding_accuracies_zero[g_x_ctr][seq_len][tr_ctr].append(acc)
 
+    # plot D: dependence on sparsity
+
+    qs = DENSITIES
+    l = SEQ_LENGTH_DENSITIES
+
+    guaranteed_replay_probability = (1 - qs) ** ((l - 1)*(l - 2))
+
+    expected_paths = np.zeros((len(NS), len(qs)))
+
+    for n_ctr, n in enumerate(NS):
+
+        factor = np.prod(n - np.arange(1, l))
+
+        expected_paths[n_ctr, :] = factor * (qs ** (l - 1))
+
+
     ## MAKE PLOT
 
-    fig, axs = plt.subplots(2, 2, figsize=FIG_SIZE, sharex=True, sharey=True, tight_layout=True)
+    fig, axs = plt.subplots(3, 2, figsize=FIG_SIZE, tight_layout=True)
+
+    # B & C
 
     for c_ctr, control in enumerate(controls):
 
@@ -932,13 +952,28 @@ def simplified_connectivity_dependence(
 
         axs[c_ctr, 0].set_ylabel('edit distance')
 
+    # D
 
-    # plot C: past decoding accuracy vs match proportion when mixed with zero connectivity
+    axs[2, 0].semilogx(DENSITIES, guaranteed_replay_probability, color='k', lw=2)
 
-    # plot D: dependence of decoding on sparsity -- replay probability vs. sparsity and
-    # "information" per sequence replay vs. sparsity and N
+    axs[2, 0].set_xlabel('q')
+    axs[2, 0].set_ylabel('p(guaranteed replay)')
 
-    for ax in axs.flat:
+    ax_twin = axs[2, 0].twinx()
+
+    handles = []
+
+    for n_ctr, n in enumerate(NS):
+
+        handles.append(
+            ax_twin.loglog(DENSITIES, expected_paths[n_ctr], lw=2, label='N = {}'.format(n))[0])
+
+    ax_twin.legend(handles=handles)
+
+    ax_twin.set_ylabel('expected paths')
+
+    for ax in list(axs.flat) + [ax_twin]:
+
         set_fontsize(ax, FONT_SIZE)
 
     return fig
