@@ -981,12 +981,281 @@ def simplified_connectivity_dependence(
 
 def simplified_connectivity_dependence_current_stim_decoding(
         SEED,
-        N_NODES, P_CONNECT):
+        N_NODES, P_CONNECT, G_W, G_DS, G_D_EXAMPLE,
+        N_TIME_POINTS, N_TIME_POINTS_EXAMPLE, DECODING_SEQUENCE_LENGTHS,
+        MATCH_PROPORTIONS, N_TRIALS, MATCH_PROPORTION_SEQUENCE_LENGTHS,
+        FIG_SIZE, COLORS, MATCH_PROPORTION_COLORS, FONT_SIZE):
+    """
+    Explore how the ability to decode an external drive at a single time point depends on the alignment
+    of the weight matrix with the stimulus transition probabilities. (when weight matrix is nonbinary)
+    """
 
-    pass
+    np.random.seed(SEED)
 
-    # plot B: current single-timepoint decoding accuracy with matched or half-matched connectivity
+    ## RUN FIRST SIMULATION -- VARYING STIMULUS INFLUENCE
 
-    # plot C: current multi-timepoint decoding accuracy with matched or half-matched connectivity
+    keys = ['matched', 'zero', 'half_matched', 'random']
 
-    # plot D: individual decoding accuracy traces
+    # build original weight matrix and convert to drive transition probability distribution
+
+    ws = {}
+
+    ws['matched'] = er_directed(N_NODES, P_CONNECT)
+    p_tr_drive, p_0_drive = metrics.softmax_prob_from_weights(ws['matched'], G_W)
+
+    # build the other weight matrices
+
+    ws['zero'] = np.zeros((N_NODES, N_NODES), dtype=float)
+
+    ws['half_matched'] = ws['matched'].copy()
+    ws['half_matched'][np.random.rand(*ws['half_matched'].shape) < 0.5] = 0
+
+    ws['random'] = er_directed(N_NODES, P_CONNECT)
+
+    # make networks
+
+    ntwks = {}
+
+    for key, w in ws.items():
+        ntwks[key] = SoftmaxWTAWithLingeringHyperexcitability(
+            w, g_w=G_W, g_x=0, g_d=None, t_x=0)
+
+    # perform a few checks
+
+    assert np.sum(np.abs(ws['zero'])) == 0
+
+    # create sample drive sequence
+
+    drives = np.zeros((N_TIME_POINTS, N_NODES))
+
+    drive_first = np.random.choice(np.arange(N_NODES), p=p_0_drive.flatten())
+    drives[0, drive_first] = 1
+
+    for ctr in range(N_TIME_POINTS - 1):
+        drive_last = np.argmax(drives[ctr])
+        drive_next = np.random.choice(range(N_NODES), p=p_tr_drive[:, drive_last])
+
+        drives[ctr + 1, drive_next] = 1
+
+    drive_seq = np.argmax(drives, axis=1)
+    drive_seqs = {
+        seq_len: metrics.gather_sequences(drive_seq, seq_len)
+        for seq_len in DECODING_SEQUENCE_LENGTHS
+        }
+
+    # loop through various external drive gains and calculate how accurate the stimulus decoding is
+
+    decoding_accuracies = {
+        key: {
+            seq_len: []
+            for seq_len in DECODING_SEQUENCE_LENGTHS
+            }
+        for key in keys
+        }
+
+    decoding_results_examples = {}
+
+    r_0 = np.zeros((N_NODES,))
+    xc_0 = np.zeros((N_NODES,))
+
+    for g_d in list(G_DS) + [G_D_EXAMPLE]:
+
+        # set drive gain in all networks and run them
+
+        for key, ntwk in ntwks.items():
+
+            ntwk.g_d = g_d
+
+            rs_seq = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
+
+            # calculate decoding accuracy for this network for all specified sequence lengths
+
+            for seq_len in DECODING_SEQUENCE_LENGTHS:
+
+                rs_seq_staggered = metrics.gather_sequences(rs_seq, seq_len)
+
+                decoding_results = np.all(rs_seq_staggered == drive_seqs[seq_len], axis=1)
+
+                decoding_accuracies[key][seq_len].append(np.mean(decoding_results))
+
+            if g_d == G_D_EXAMPLE:
+
+                decoding_results_examples[key] = (rs_seq == drive_seq)
+
+    ## MAKE PLOTS FOR FIRST SIMULATION
+
+    n_seq_lens = len(DECODING_SEQUENCE_LENGTHS)
+
+    fig = plt.figure(figsize=FIG_SIZE, facecolor='white', tight_layout=True)
+
+    # the top row will be decoding accuracies for all sequence lengths
+
+    axs = [
+        fig.add_subplot(2 + len(MATCH_PROPORTION_SEQUENCE_LENGTHS), n_seq_lens, ctr + 1)
+        for ctr in range(n_seq_lens)
+    ]
+
+    # the bottom row is example decoding accuracy time courses
+
+    axs.append(fig.add_subplot(2 + len(MATCH_PROPORTION_SEQUENCE_LENGTHS), 1, 2))
+
+    for ax, seq_len in zip(axs[:-1], DECODING_SEQUENCE_LENGTHS):
+
+        for key, color in zip(keys, COLORS):
+            ax.plot(G_DS, decoding_accuracies[key][seq_len][:-1], c=color, lw=2)
+
+        ax.set_xlim(G_DS[0], G_DS[-1])
+        ax.set_ylim(0, 1.1)
+
+        ax.set_xlabel('g_d')
+
+    axs[0].set_ylabel('decoding accuracy')
+
+    for ax, seq_len in zip(axs[:-1], DECODING_SEQUENCE_LENGTHS):
+        ax.set_title('Length {} sequences'.format(seq_len))
+
+    axs[0].legend(keys, loc='best')
+
+    for ctr, (key, color) in enumerate(zip(keys, COLORS)):
+        decoding_results = decoding_results_examples[key]
+        y_vals = 2 * ctr + decoding_results
+
+        axs[-1].plot(y_vals, c=color, lw=2)
+        axs[-1].axhline(2 * ctr, color='gray', lw=1, ls='--')
+
+    axs[-1].set_xlim(0, N_TIME_POINTS_EXAMPLE)
+    axs[-1].set_ylim(-1, 2 * len(keys) + 1)
+
+    axs[-1].set_xlabel('time step')
+    axs[-1].set_ylabel('correct decoding')
+
+    axs[-1].set_title('example decoder time course')
+
+
+    ## RUN SECOND SIMULATION -- VARIED MATCH PROPORTIONS
+
+    keys = ['mixed_random', 'mixed_zero']
+
+    # the following is indexed by [key][seq_len][trial][match_proportion_idx]
+
+    decoding_accuracies = {
+        key: {
+            seq_len: [[] for _ in range(N_TRIALS)]
+            for seq_len in DECODING_SEQUENCE_LENGTHS
+            }
+        for key in keys
+        }
+
+    r_0 = np.zeros((N_NODES,))
+    xc_0 = np.zeros((N_NODES,))
+
+    for tr_ctr in range(N_TRIALS):
+
+        # build original weight matrix and convert to drive transition probability distribution
+
+        w_matched = er_directed(N_NODES, P_CONNECT)
+        p_tr_drive, p_0_drive = metrics.softmax_prob_from_weights(w_matched, G_W)
+
+        # build template random and zero matrices
+
+        w_random = er_directed(N_NODES, P_CONNECT)
+        w_zero = np.zeros((N_NODES, N_NODES), dtype=float)
+
+        for mp_ctr, match_proportion in enumerate(MATCH_PROPORTIONS):
+
+            ws = {}
+
+            # make mixed weight matrices
+
+            random_mask = np.random.rand(*w_matched.shape) < match_proportion
+            zero_mask = np.random.rand(*w_matched.shape) < match_proportion
+
+            ws['mixed_random'] = w_random.copy()
+            ws['mixed_random'][random_mask] = w_matched[random_mask]
+
+            ws['mixed_zero'] = w_zero.copy()
+            ws['mixed_zero'][zero_mask] = w_matched[zero_mask]
+
+            # make networks
+
+            ntwks = {}
+
+            for key, w in ws.items():
+                ntwks[key] = SoftmaxWTAWithLingeringHyperexcitability(
+                    w, g_w=G_W, g_x=0, g_d=G_D_EXAMPLE, t_x=0)
+
+            # create random drive sequences
+
+            drives = np.zeros((N_TIME_POINTS, N_NODES))
+
+            drive_first = np.random.choice(np.arange(N_NODES), p=p_0_drive.flatten())
+            drives[0, drive_first] = 1
+
+            for ctr in range(N_TIME_POINTS - 1):
+                drive_last = np.argmax(drives[ctr])
+                drive_next = np.random.choice(range(N_NODES), p=p_tr_drive[:, drive_last])
+
+                drives[ctr + 1, drive_next] = 1
+
+            drive_seq = np.argmax(drives, axis=1)
+            drive_seqs = {
+                seq_len: metrics.gather_sequences(drive_seq, seq_len)
+                for seq_len in DECODING_SEQUENCE_LENGTHS
+                }
+
+            # run networks
+
+            for key, ntwk in ntwks.items():
+
+                rs_seq = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives).argmax(axis=1)
+
+                # calculate decoding accuracy for this network for all specified sequence lengths
+
+                for seq_len in DECODING_SEQUENCE_LENGTHS:
+
+                    rs_seq_staggered = metrics.gather_sequences(rs_seq, seq_len)
+
+                    decoding_results = np.all(rs_seq_staggered == drive_seqs[seq_len], axis=1)
+
+                    decoding_accuracies[key][seq_len][tr_ctr].append(np.mean(decoding_results))
+
+    ## MAKE PLOTS FOR SECOND SIMULATION
+
+    n_seq_lens = len(MATCH_PROPORTION_SEQUENCE_LENGTHS)
+
+    for ctr in range(n_seq_lens):
+
+        axs.append(fig.add_subplot(2 + n_seq_lens, 1, 2 + ctr + 1))
+
+    for ax, seq_len in zip(axs[-n_seq_lens:], MATCH_PROPORTION_SEQUENCE_LENGTHS):
+
+        handles = []
+
+        for ctr, (key, color) in enumerate(zip(keys, MATCH_PROPORTION_COLORS)):
+
+            accs = np.array(decoding_accuracies[key][seq_len])
+
+            accs_mean = accs.mean(axis=0)
+            accs_sem = stats.sem(accs, axis=0)
+
+            handles.append(ax.plot(MATCH_PROPORTIONS, accs_mean, c=color, lw=2, label=key, zorder=1)[0])
+
+            ax.fill_between(
+                MATCH_PROPORTIONS, accs_mean - accs_sem, accs_mean + accs_sem,
+                color=color, alpha=0.1)
+
+        ax.legend(handles=handles, loc='upper left')
+
+        ax.set_xlim(0, 1)
+        ax.set_ylim(-.1, 1.1)
+
+        ax.set_xlabel('match proportion')
+        ax.set_ylabel('decoding accuracy')
+
+        ax.set_title('length {} sequences'.format(seq_len))
+
+    for ax in axs:
+
+        set_fontsize(ax, FONT_SIZE)
+
+    return fig
