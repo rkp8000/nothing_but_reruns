@@ -197,7 +197,7 @@ class SoftmaxWTAWithLingeringHyperexcitabilityAndRefractoriness(object):
         for drive in drives:
 
             # calculate inputs and softmax probabilities
-            inputs = self.calculate_inputs(r, xc, drive)
+            inputs = self.calculate_inputs(r, xc, rfc, drive)
             prob = _calculate_softmax_probability(inputs)
 
             # select active node
