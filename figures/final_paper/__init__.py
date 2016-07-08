@@ -3,12 +3,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
-from connectivity import feed_forward_grid, er_directed
+from connectivity import feed_forward_grid, er_directed, hexagonal_lattice
 
 import metrics
 
 from network import LIFExponentialSynapsesModel
 from network import SoftmaxWTAWithLingeringHyperexcitability
+from network import SoftmaxWTAWithLingeringHyperexcitabilityAndRefractoriness
 
 from plot import fancy_raster, fancy_raster_arrows_above
 from plot import multivariate_same_axis
@@ -1253,6 +1254,102 @@ def simplified_connectivity_dependence_current_stim_decoding(
         ax.set_ylabel('decoding accuracy')
 
         ax.set_title('length {} sequences'.format(seq_len))
+
+    for ax in axs:
+
+        set_fontsize(ax, FONT_SIZE)
+
+    return fig
+
+
+def reverse_replay(
+        SEED,
+        LATTICE_SIZE,
+        G_W, G_X, G_D, T_X, G_RF, T_RF,
+        DRIVE_SEQS, TRIGGERS,
+        AX_SIZE, FONT_SIZE):
+    """
+    Demonstrate reverse replay via refractoriness on a hexagonal lattice network.
+    """
+
+    np.random.seed(SEED)
+
+    # make connectivity matrix and get node labels
+
+    w, nodes = hexagonal_lattice(LATTICE_SIZE)
+
+    n_nodes = len(nodes)
+
+    # make network
+
+    ntwk = SoftmaxWTAWithLingeringHyperexcitabilityAndRefractoriness(
+        w=w, g_w=G_W, g_x=G_X, g_d=G_D, t_x=T_X, g_rf=G_RF, t_rf=T_RF)
+
+    # build drive sequences
+
+    drives_all = []
+
+    for drive_seq, triggers in zip(DRIVE_SEQS, TRIGGERS):
+
+        run_time = len(drive_seq) * (1 + len(triggers))
+
+        drives = np.zeros((run_time, n_nodes))
+
+        # add preliminary drive
+
+        for t, node in enumerate(drive_seq):
+
+            drives[t, nodes.index(node)] = 1
+
+        # add triggers
+
+        for tr_ctr, node in enumerate(triggers):
+
+            t = len(drive_seq) * (tr_ctr + 1)
+
+            drives[t, nodes.index(node)] = 1
+
+        drives_all.append(drives)
+
+    # run networks
+
+    r_0 = np.zeros((n_nodes,))
+    xc_0 = np.zeros((n_nodes,))
+    rfc_0 = np.zeros((n_nodes,))
+
+    rs_all = []
+
+    for drives in drives_all:
+
+        rs = ntwk.run(r_0=r_0, xc_0=xc_0, rfc_0=rfc_0, drives=drives)
+
+        rs_all.append(rs)
+
+
+    # MAKE PLOTS
+
+    fig_size = [AX_SIZE[0], AX_SIZE[1] * len(DRIVE_SEQS)]
+
+    fig, axs = plt.subplots(len(DRIVE_SEQS), 1, figsize=fig_size, tight_layout=True)
+
+    if len(DRIVE_SEQS) == 1:
+
+        axs = [axs]
+
+    for ctr, (ax, rs, drives) in enumerate(zip(axs, rs_all, drives_all)):
+
+        fancy_raster_arrows_above(ax, rs, drives, spike_marker_size=40, arrow_marker_size=80, rise=6)
+
+        x_fill = [-0.5, len(DRIVE_SEQS[ctr]) - 0.5]
+
+        y_fill_lower = [-1, -1]
+        y_fill_upper = [n_nodes + 1, n_nodes + 1]
+
+        ax.fill_between(x_fill, y_fill_lower, y_fill_upper, color='r', alpha=0.1)
+
+        ax.set_xlabel('time step')
+        ax.set_ylabel('node')
+        ax.set_title('Simplified model reverse replay example {}'.format(ctr + 1))
 
     for ax in axs:
 
