@@ -1368,7 +1368,7 @@ def lif_reverse_replay(
         REPLAY_TRIGGER_CELLS, REPLAY_TRIGGER_TIMES, REPLAY_TRIGGER_STRENS,
         MEMORY_RESET_STARTS, MEMORY_RESET_ENDS, MEMORY_RESET_STRENS, MEMORY_RESET_FRQS,
         SIM_DURATION, DT,
-        FIG_SIZE, FONT_SIZE):
+        FIG_SIZE, SPIKE_HEIGHT, Y_LIM, FONT_SIZE):
 
 
     syns = TAUS_SYN.keys()
@@ -1413,11 +1413,19 @@ def lif_reverse_replay(
 
         ws[syn][range(n_primary_cells, 2 * n_primary_cells), range(n_primary_cells, 2 * n_primary_cells)] = W_MM[syn]
 
+    # make array of refractory periods for each cell
+
+    refrac_per = np.concatenate([
+        REFRAC_PER['primary'] * np.ones((n_primary_cells,)),
+        REFRAC_PER['memory'] * np.ones((n_primary_cells,)),
+        [REFRAC_PER['inhibitory']],
+    ])
+
     # make network
 
     ntwk = LIFExponentialSynapsesModel(
         v_rest=V_REST, tau_m=TAU_M, taus_syn=TAUS_SYN, v_revs_syn=V_REVS_SYN,
-        v_th=V_TH, v_reset=V_RESET, refrac_per=REFRAC_PER, ws=ws)
+        v_th=V_TH, v_reset=V_RESET, refrac_per=refrac_per, ws=ws)
 
 
     # build drive arrays
@@ -1537,10 +1545,10 @@ def lif_reverse_replay(
 
     primary_spikes = measurements['spikes'][:, :n_primary_cells].nonzero()
 
-    axs[0].scatter(primary_spikes[0] * DT, primary_spikes[1], s=200, marker='|', c='k', lw=1)
+    axs[0].scatter(primary_spikes[0] * DT, primary_spikes[1], s=SPIKE_HEIGHT, marker='|', c='k', lw=1)
 
     axs[0].set_xlim(0, SIM_DURATION)
-    axs[0].set_ylim(-1, n_primary_cells)
+    axs[0].set_ylim(*Y_LIM)
 
     axs[0].set_ylabel('neuron')
     axs[0].set_title('primary neuron spikes')
@@ -1549,10 +1557,10 @@ def lif_reverse_replay(
 
     memory_spikes = measurements['spikes'][:, n_primary_cells:2 * n_primary_cells].nonzero()
 
-    axs[1].scatter(memory_spikes[0] * DT, memory_spikes[1], s=150, marker='|', c='b', lw=1)
+    axs[1].scatter(memory_spikes[0] * DT, memory_spikes[1], s=SPIKE_HEIGHT, marker='|', c='b', lw=1)
 
     axs[1].set_xlim(0, SIM_DURATION)
-    axs[1].set_ylim(-1, n_primary_cells)
+    axs[1].set_ylim(*Y_LIM)
 
     axs[1].set_ylabel('neuron')
     axs[1].set_title('memory neuron spikes')
