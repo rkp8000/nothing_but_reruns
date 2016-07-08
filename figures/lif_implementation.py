@@ -182,6 +182,7 @@ def sequence_replay_branching_chain_demo(
         axs[0], measurements['time'], [primary_voltages], scales, spacing, colors)
 
     axs[0].set_ylabel('neuron')
+    axs[0].set_title('primary neuron voltages')
 
     memory_voltages = measurements['voltages'][:, n_primary_cells:2 * n_primary_cells]
 
@@ -193,6 +194,7 @@ def sequence_replay_branching_chain_demo(
         axs[1], measurements['time'], [memory_voltages], scales, spacing, colors)
 
     axs[1].set_ylabel('neuron')
+    axs[1].set_title('memory neuron voltages')
 
     # primary spikes
 
@@ -202,6 +204,7 @@ def sequence_replay_branching_chain_demo(
 
     axs[2].set_ylim(-1, n_primary_cells)
     axs[2].set_ylabel('neuron')
+    axs[2].set_title('primary neuron spikes')
 
     # memory spikes
 
@@ -214,6 +217,7 @@ def sequence_replay_branching_chain_demo(
 
     axs[3].set_xlabel('time (s)')
     axs[3].set_ylabel('neuron')
+    axs[3].set_title('memory neuron spikes')
 
     for ax in axs:
 

@@ -52,3 +52,20 @@ def er_capacity(
     for ax in axs:
 
         set_fontsize(ax, FONT_SIZE)
+
+
+def er_optimal_q(LS, FIG_SIZE, FONT_SIZE):
+    """
+    Plot the optimal q for the ER network.
+    """
+
+    fig, ax = plt.subplots(1, 1, figsize=FIG_SIZE, tight_layout=True)
+
+    ax.plot(LS, 1 / (np.array(LS) - 1), lw=3, c='k')
+
+    ax.set_xlabel(r'$L$', color='k')
+    ax.set_ylabel(r'$q^*$', color='k')
+
+    set_fontsize(ax, FONT_SIZE)
+
+    return fig

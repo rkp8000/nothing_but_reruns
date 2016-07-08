@@ -555,6 +555,8 @@ def hyperexcitable_downstream_neuron_via_self_sustaining_input(
 
     # set up weight matrix
 
+    np.random.seed(SEED)
+
     ws = {syn: np.zeros((n_cells, n_cells)) for syn in syns}
 
     for syn in syns:
@@ -569,14 +571,16 @@ def hyperexcitable_downstream_neuron_via_self_sustaining_input(
 
         ws[syn][:CHAIN_LENGTH + 3, -1] = W_EI[syn]
         ws[syn][-1, :CHAIN_LENGTH + 3] = W_IE[syn]
+        ws[syn][-1, -1] = W_II[syn]
 
         # self-sustaining excitatory group
 
         cxn_mask = np.random.rand(N_CELLS_MEMORY, N_CELLS_MEMORY) < P_CONNECT_MEMORY[syn]
 
-        np.fill_diagonal(cxn_mask, 0)
+        cxns = np.zeros(cxn_mask.shape)
+        cxns[cxn_mask] = W_EE_MEMORY[syn]
 
-        ws[syn][CHAIN_LENGTH + 3:-1, CHAIN_LENGTH + 3:-1] = W_EE_MEMORY[syn]
+        ws[syn][CHAIN_LENGTH + 3:-1, CHAIN_LENGTH + 3:-1] = cxns
 
         # projection of self-sustaining excitatory to hyperexcitable cell
 

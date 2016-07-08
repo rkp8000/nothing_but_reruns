@@ -2,6 +2,7 @@
 Figures demonstrating dynamical systems implementation of replay.
 """
 from __future__ import division, print_function
+from matplotlib import gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import networkx as nx
@@ -11,8 +12,6 @@ import network
 from plot import multivariate_same_axis
 from plot import set_fontsize
 from plot import firing_rate_heat_map
-
-plt.style.use('ggplot')
 
 
 def sigmoid(x):
@@ -499,10 +498,27 @@ def single_ensemble_hysteresis_demo(
 
     ts = np.arange(n_steps) * DT
 
-    # MAKE PLOT
+    # make phase plots for the memory units
 
-    fig, ax = plt.subplots(
-        1, 1, facecolor='white', figsize=FIG_SIZE, tight_layout=True)
+    vs_memory = np.linspace(-.1, 0.06, 1000)
+
+    dv_dts = []
+
+    for w_mm in W_MMS_PHASE_PLOT:
+
+        dv_dt = (1 / TAU) * (-(vs_memory - V_REST) + \
+            w_mm * sigmoid(GAIN * (vs_memory - V_TH)))
+
+        dv_dts.append(dv_dt)
+
+
+    # MAKE PLOTS
+
+    fig = plt.figure(facecolor='white', figsize=FIG_SIZE, tight_layout=True)
+
+    gs = gridspec.GridSpec(1, 3)
+
+    ax = fig.add_subplot(gs[:2])
 
     # plot stimulus
 
@@ -542,7 +558,7 @@ def single_ensemble_hysteresis_demo(
     ax.text(0.01, 2 * VERTICAL_SPACING + 1.3, 'primary unit', fontsize=FONT_SIZE)
 
     ax.set_xlim(0, SIM_DURATION)
-    ax.set_ylim(0, 3.5 * VERTICAL_SPACING)
+    ax.set_ylim(0, 3.1 * VERTICAL_SPACING)
 
     ax.set_xlabel('time (s)', color='k')
     ax.set_ylabel('stimulus, voltage', color='k')
@@ -571,8 +587,27 @@ def single_ensemble_hysteresis_demo(
     ax_twin.set_ylabel('firing rate', color='g')
     [tl.set_color('g') for tl in ax_twin.get_yticklabels()]
 
-    set_fontsize(ax, FONT_SIZE)
-    set_fontsize(ax_twin, FONT_SIZE)
+    ax_2 = fig.add_subplot(gs[2])
+
+    for dv_dt in dv_dts:
+
+        ax_2.plot(vs_memory, dv_dt, lw=4)
+
+    ax_2.axhline(0, color='gray', lw=3, ls='--')
+
+    ax_2.set_xticks([-.1, -.02, .06])
+    ax_2.yaxis.tick_right()
+
+    ax_2.set_xlabel('voltage (V)')
+    ax_2.set_ylabel('dv/dt (V/s)')
+
+    ax_2.yaxis.set_label_position('right')
+
+    ax_2.legend(W_MMS_PHASE_PLOT)
+
+    for ax_temp in [ax, ax_twin, ax_2]:
+
+        set_fontsize(ax_temp, FONT_SIZE)
 
     return fig
 

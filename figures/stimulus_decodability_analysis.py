@@ -9,8 +9,6 @@ import metrics
 import network
 from plot import set_fontsize
 
-plt.style.use('ggplot')
-
 
 def single_time_point_decoding_vs_binary_weight_matrix(
         SEED,
@@ -1011,9 +1009,9 @@ def decoding_past_stim_from_present_activity(
     SEED,
     N_NODES, P_CONNECT, STRENGTHS, P_STRENGTHS, G_W, G_X, G_D, T_X,
     DRIVEN_RUN_LENGTH, DRIVEN_RECORD_START, DRIVEN_RECORD_END,
-    SPONT_RUN_LENGTH, SPONT_RECORD_START,
+    SPONT_RUN_LENGTH, SPONT_RECORD_START, FORCE_FIRST_ELEMENT,
     N_TRIALS,
-    FIG_SIZE, VISUAL_SCATTER, MARKER_SIZE, COLORS, FONT_SIZE):
+    FIG_SIZE, COLORS, FONT_SIZE):
     """
     Estimate how well previous stimulus sequence can be decoded from current network activity.
     """
@@ -1075,7 +1073,12 @@ def decoding_past_stim_from_present_activity(
 
             drives[ctr + 1, drive_next] = 1
 
+        if FORCE_FIRST_ELEMENT:
+
+            drives[DRIVEN_RUN_LENGTH, drive_first] = 1
+
         drive_seq = np.argmax(drives, axis=1)
+        drive_seq[drives.sum(axis=1) == 0] = -1
 
         drivess.append(drives)
         drive_seqs.append(drive_seq)
@@ -1131,3 +1134,130 @@ def decoding_past_stim_from_present_activity(
     ax.legend(keys, loc='best')
 
     set_fontsize(ax, FONT_SIZE)
+
+
+def past_stim_decoding_with_varied_matching_weight_matrix(
+        SEED,
+        N_NODES, P_CONNECT, G_D, G_W, G_X, T_X,
+        MATCH_PROPORTIONS,
+        N_TRIALS, SEQ_LENGTHS,
+        FIG_SIZE, FONT_SIZE, COLORS):
+    """
+    Run several trials of networks driven by different stimuli, with different weight
+    matrices relative to the stimulus transition matrix.
+    """
+
+    np.random.seed(SEED)
+
+    # the following is indexed by [seq_len][trial][match_proportion_idx]
+
+    decoding_accuracies = [{
+        seq_len: [[] for _ in range(N_TRIALS)]
+        for seq_len in SEQ_LENGTHS
+        } for _ in range(2)]
+
+
+    ## RUN SIMULATIONS AND RECORD DECODING ACCURACIES
+
+    r_0 = np.zeros((N_NODES,))
+    xc_0 = np.zeros((N_NODES,))
+
+    for g_x_ctr, g_x in enumerate([G_X, 0]):
+
+        for tr_ctr in range(N_TRIALS):
+
+            # build original weight matrix and convert to drive transition probability distribution
+
+            w_matched = connectivity.er_directed(N_NODES, P_CONNECT)
+            p_tr_drive, p_0_drive = metrics.softmax_prob_from_weights(w_matched, G_W)
+
+            # build template random and zero matrices
+
+            w_random = connectivity.er_directed(N_NODES, P_CONNECT)
+
+            for mp_ctr, match_proportion in enumerate(MATCH_PROPORTIONS):
+
+                # make mixed weight matrices
+
+                random_mask = np.random.rand(*w_matched.shape) < match_proportion
+
+                w = w_random.copy()
+                w[random_mask] = w_matched[random_mask]
+
+                # make network
+
+                ntwk= network.SoftmaxWTAWithLingeringHyperexcitability(
+                    w, g_d=G_D, g_w=G_W, g_x=g_x, t_x=T_X)
+
+                # create random drive sequences
+
+                for seq_len in SEQ_LENGTHS:
+
+                    drives = np.zeros((2 * seq_len, N_NODES))
+
+                    drive_first = np.random.choice(np.arange(N_NODES), p=p_0_drive.flatten())
+                    drives[0, drive_first] = 1
+
+                    for ctr in range(seq_len - 1):
+
+                        drive_last = np.argmax(drives[ctr])
+                        drive_next = np.random.choice(range(N_NODES), p=p_tr_drive[:, drive_last])
+
+                        drives[ctr + 1, drive_next] = 1
+
+                    # add trigger
+
+                    drives[seq_len, drive_first] = 1
+
+                    drive_seq = np.argmax(drives[:seq_len], axis=1)
+
+                    rs = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives)
+
+                    rs_seq = rs[seq_len:].argmax(axis=1)
+
+                    # calculate decoding accuracy
+
+                    acc = metrics.levenshtein(drive_seq, rs_seq)
+
+                    decoding_accuracies[g_x_ctr][seq_len][tr_ctr].append(acc)
+
+
+    ## MAKE PLOT
+
+    fig, axs = plt.subplots(1, 2, figsize=FIG_SIZE, sharex=True, sharey=True, tight_layout=True)
+
+    for g_x_ctr, (g_x, ax) in enumerate(zip([G_X, 0], axs)):
+
+        handles = []
+
+        for seq_len, color in zip(SEQ_LENGTHS, COLORS):
+
+            trials = np.array(decoding_accuracies[g_x_ctr][seq_len])
+
+            acc_mean = np.mean(trials, axis=0)
+            acc_sem = stats.sem(trials, axis=0)
+
+            label = 'L = {}'.format(seq_len)
+
+            handles.append(ax.plot(MATCH_PROPORTIONS, acc_mean, color=color, lw=3, label=label)[0])
+
+            ax.fill_between(
+                MATCH_PROPORTIONS, acc_mean - acc_sem, acc_mean + acc_sem, color=color, alpha=.3)
+
+        ax.set_xlabel('match proportion')
+
+        if g_x_ctr == 0:
+
+            ax.set_title('Hyperexcitability on')
+
+        elif g_x_ctr == 1:
+
+            ax.set_title('Hyperexcitability off')
+
+    axs[0].set_ylabel('edit distance')
+
+    for ax in axs:
+
+        set_fontsize(ax, FONT_SIZE)
+
+    return fig

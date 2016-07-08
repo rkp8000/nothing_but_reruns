@@ -1,12 +1,12 @@
 from __future__ import division, print_function
+from copy import deepcopy
 import matplotlib.pyplot as plt
 import numpy as np
 
 from connectivity import feed_forward_grid
 from network import SoftmaxWTAWithLingeringHyperexcitability as network
+from network import SoftmaxWTAWithLingeringHyperexcitabilityAndSTDP as network_stdp
 from plot import fancy_raster, fancy_raster_arrows_above, set_fontsize
-
-plt.style.use('ggplot')
 
 
 def make_feed_forward_grid_weights(shape, spread):
@@ -94,9 +94,9 @@ def replay_example(
     axs = []
 
     axs.append(fig.add_subplot(1, 4, 1))
-    axs.append(fig.add_subplot(1, 4, 2))
+    axs.append(fig.add_subplot(1, 4, 2, sharey=axs[0]))
 
-    axs.append(fig.add_subplot(1, 2, 2))
+    axs.append(fig.add_subplot(1, 2, 2, sharey=axs[0]))
 
     for ax, drives, rs in zip(axs[:-1], all_drives, all_rs):
 
@@ -123,6 +123,7 @@ def replay_example(
         if ax_ctr < len(axs) - 1:
 
             ax.set_xlim(-1, 2 * len(DRIVEN_NODES[0]))
+            ax.set_xticks([0, 4, 8, 12])
 
         else:
 
@@ -145,6 +146,8 @@ def replay_example(
             ax.set_title('Spontaneous replay')
 
         set_fontsize(ax, FONT_SIZE)
+
+    return fig
 
 
 def replay_probability_calculation(
@@ -354,3 +357,105 @@ def nonreplayable_sequence_example(
             ax.set_ylabel('sequence replay \n probability')
 
         set_fontsize(ax, FONT_SIZE)
+
+
+def replay_with_stdp_example(
+        SEED, GRID_SHAPE, LATERAL_SPREAD, G_W, G_X, G_D, T_X,
+        W_MAX, ALPHA,
+        DRIVEN_NODES, SPONTANEOUS_RUN_TIME,
+        N_TRIALS, W_IJ_MEASURED,
+        FIG_SIZE, COLORS, FONT_SIZE, LEGEND_FONTSIZE):
+    """
+    Show an example of how replay can be used to make STDP relevant for one-shot sequence embedding.
+    """
+
+    # RUN SIMULATIONS
+
+    np.random.seed(SEED)
+
+    # make weights
+
+    w = make_feed_forward_grid_weights(GRID_SHAPE, LATERAL_SPREAD)
+    n_nodes = w.shape[0]
+
+    # set up weight measuring
+
+    w_ij_time_coursess = {}
+
+    assert isinstance(W_IJ_MEASURED, tuple)
+
+    def record_w_ij(ww):
+
+        return ww[W_IJ_MEASURED]
+
+    # create drive sequence
+
+    total_run_time = len(DRIVEN_NODES) + SPONTANEOUS_RUN_TIME
+    drives = np.zeros((total_run_time, n_nodes), dtype=float)
+
+    for t, node in enumerate(DRIVEN_NODES):
+
+        drives[t, node] = 1
+
+    r_0 = np.zeros((n_nodes,), dtype=float)
+    xc_0 = np.zeros((n_nodes,), dtype=float)
+
+    # loop over g_x's
+
+    for g_x in [0, G_X]:
+
+        # make network
+
+        ntwk = network_stdp(w=w, g_w=G_W, g_x=g_x, g_d=G_D, t_x=T_X, w_max=W_MAX, alpha=ALPHA)
+
+        # loop over trials
+
+        w_ij_time_courses = []
+
+        for _ in range(N_TRIALS):
+
+            rs, w_ij_time_course = ntwk.run(
+                r_0=r_0, xc_0=xc_0, drives=drives, weight_measurement_function=record_w_ij)
+
+            w_ij_time_courses.append(w_ij_time_course)
+
+        w_ij_time_coursess[g_x] = w_ij_time_courses
+
+
+    # PLOT THINGS
+
+    fig, ax = plt.subplots(1, 1, figsize=FIG_SIZE, facecolor='white', tight_layout=True)
+    ts = np.arange(total_run_time)
+
+    handles = []
+
+    for g_x, color in zip([0, G_X], COLORS):
+
+        w_ij_time_courses = np.array(w_ij_time_coursess[g_x])
+
+        ax.plot(ts, w_ij_time_courses.T, lw=1, color=color)
+
+        if g_x == 0:
+
+            label = 'Hyperexcitability off'
+
+        if g_x == G_X:
+
+            label = 'Hyperexcitability on'
+
+        handles.append(
+            ax.plot(
+                ts, w_ij_time_courses.mean(axis=0),
+                lw=5, color=color, label=label)[0])
+
+    ax.set_xticks([0, 100, 200, 300])
+
+    ax.set_xlabel('time step')
+    subscript = '{}, {}'.format(*W_IJ_MEASURED)
+    ax.set_ylabel(r'$W_{%s}$' % subscript)
+
+    set_fontsize(ax, FONT_SIZE)
+
+    ax.legend(handles=handles, loc='best', fontsize=LEGEND_FONTSIZE)
+
+    return fig
