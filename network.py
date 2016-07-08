@@ -6,3 +6,4 @@ from network_models.discrete_time import SoftmaxWTAWithLingeringHyperexcitabilit
 from network_models.discrete_time import SoftmaxWTAWithLingeringHyperexcitabilityAndSTDP
 
 from network_models.continuous_time import RateBasedModel
+from network_models.continuous_time import LIFExponentialSynapsesModel
