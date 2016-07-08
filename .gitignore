@@ -13,3 +13,5 @@
 
 __database_modification_tests.ipynb
 __database_modification_tests.log
+
+__exploratory*.ipynb
