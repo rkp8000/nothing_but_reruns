@@ -74,7 +74,7 @@ class LIFExponentialSynapsesModel(object):
 
     :param v_th: threshold potential
     :param v_reset: reset potential
-    :param refrac_per: refractory period
+    :param refrac_per: refractory period or list of refractory periods for individual cells
 
     :param ws: dict of weight matrices for different synapse types
     """
@@ -145,13 +145,22 @@ class LIFExponentialSynapsesModel(object):
         self.v_th = v_th
         self.v_reset = v_reset
 
-        self.refrac_per = refrac_per
         self.ws = ws
 
         # extract some basic metadata
 
         self.n_cells = len(self.ws.values()[0])
         self.syns = self.taus_syn.keys()
+
+        # allow refractory period to be specified for individual cells or not
+
+        if isinstance(refrac_per, float) or isinstance(refrac_per, int):
+
+            refrac_per *= np.ones((self.n_cells,))
+
+        assert len(refrac_per) == self.n_cells
+
+        self.refrac_per = np.array(refrac_per)
 
     def run(self, initial_conditions, drives, dt, record=('spikes')):
         """
@@ -224,7 +233,7 @@ class LIFExponentialSynapsesModel(object):
 
             spikes = vs > self.v_th
             vs[spikes] = self.v_reset
-            rp_ctrs[spikes] = self.refrac_per // dt
+            rp_ctrs[spikes] = self.refrac_per[spikes] // dt
             spikes = spikes.astype(float)
 
             # record desired variables
