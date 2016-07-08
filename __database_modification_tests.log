@@ -1,0 +1,279 @@
+2016-04-28 11:05:36,848 - root - INFO - BEGINNING TEST OF FUNCTION: "er_capacity".
+
+2016-04-28 11:05:42,381 - root - INFO - Running 2 networks per network size with p_connect = 0.1.
+2016-04-28 11:05:42,381 - root - INFO - Running networks of size 10.
+
+2016-04-28 11:05:42,381 - root - INFO - Building network # 1.
+
+2016-04-28 11:05:42,381 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,385 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,394 - root - INFO - Building network # 2.
+
+2016-04-28 11:05:42,394 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,395 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,397 - root - INFO - Running networks of size 12.
+
+2016-04-28 11:05:42,397 - root - INFO - Building network # 1.
+
+2016-04-28 11:05:42,398 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,403 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,418 - root - INFO - Building network # 2.
+
+2016-04-28 11:05:42,418 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,420 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,424 - root - INFO - Running networks of size 14.
+
+2016-04-28 11:05:42,424 - root - INFO - Building network # 1.
+
+2016-04-28 11:05:42,424 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,429 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,445 - root - INFO - Building network # 2.
+
+2016-04-28 11:05:42,446 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,450 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,461 - root - INFO - Running 3 networks per network size with p_connect = 0.2.
+2016-04-28 11:05:42,461 - root - INFO - Running networks of size 10.
+
+2016-04-28 11:05:42,461 - root - INFO - Building network # 1.
+
+2016-04-28 11:05:42,461 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,465 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,474 - root - INFO - Building network # 2.
+
+2016-04-28 11:05:42,474 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,479 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,497 - root - INFO - Building network # 3.
+
+2016-04-28 11:05:42,497 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,501 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,510 - root - INFO - Running networks of size 12.
+
+2016-04-28 11:05:42,510 - root - INFO - Building network # 1.
+
+2016-04-28 11:05:42,510 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,517 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,538 - root - INFO - Building network # 2.
+
+2016-04-28 11:05:42,538 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,545 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,565 - root - INFO - Building network # 3.
+
+2016-04-28 11:05:42,566 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,576 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,632 - root - INFO - Running networks of size 14.
+
+2016-04-28 11:05:42,632 - root - INFO - Building network # 1.
+
+2016-04-28 11:05:42,632 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,639 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,660 - root - INFO - Building network # 2.
+
+2016-04-28 11:05:42,660 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,680 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,815 - root - INFO - Building network # 3.
+
+2016-04-28 11:05:42,815 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:05:42,831 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:05:42,907 - root - INFO - Test completed.
+
+2016-04-28 11:22:21,249 - root - INFO - BEGINNING TEST OF FUNCTION: "er_capacity".
+
+2016-04-28 11:22:29,687 - root - INFO - Running 2 networks per network size with p_connect = 0.1.
+2016-04-28 11:22:29,687 - root - INFO - Running networks of size 10.
+
+2016-04-28 11:22:29,687 - root - INFO - Building network # 1.
+
+2016-04-28 11:22:29,687 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:29,689 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:29,693 - root - INFO - Building network # 2.
+
+2016-04-28 11:22:29,693 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:29,695 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:29,697 - root - INFO - Running networks of size 12.
+
+2016-04-28 11:22:29,697 - root - INFO - Building network # 1.
+
+2016-04-28 11:22:29,697 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:29,700 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:29,704 - root - INFO - Building network # 2.
+
+2016-04-28 11:22:29,704 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:29,706 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:29,710 - root - INFO - Running networks of size 14.
+
+2016-04-28 11:22:29,710 - root - INFO - Building network # 1.
+
+2016-04-28 11:22:29,710 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:29,715 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:29,723 - root - INFO - Building network # 2.
+
+2016-04-28 11:22:29,724 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:29,731 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:29,755 - root - INFO - Running 3 networks per network size with p_connect = 0.2.
+2016-04-28 11:22:29,755 - root - INFO - Running networks of size 10.
+
+2016-04-28 11:22:29,755 - root - INFO - Building network # 1.
+
+2016-04-28 11:22:29,755 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:29,759 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:29,771 - root - INFO - Building network # 2.
+
+2016-04-28 11:22:29,771 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:29,776 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:29,794 - root - INFO - Building network # 3.
+
+2016-04-28 11:22:29,795 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:29,800 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:29,814 - root - INFO - Running networks of size 12.
+
+2016-04-28 11:22:29,815 - root - INFO - Building network # 1.
+
+2016-04-28 11:22:29,815 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:29,825 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:29,879 - root - INFO - Building network # 2.
+
+2016-04-28 11:22:29,879 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:29,886 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:29,917 - root - INFO - Building network # 3.
+
+2016-04-28 11:22:29,917 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:29,924 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:29,952 - root - INFO - Running networks of size 14.
+
+2016-04-28 11:22:29,952 - root - INFO - Building network # 1.
+
+2016-04-28 11:22:29,952 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:29,970 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:30,088 - root - INFO - Building network # 2.
+
+2016-04-28 11:22:30,088 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:30,101 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:30,169 - root - INFO - Building network # 3.
+
+2016-04-28 11:22:30,169 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:22:30,178 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:22:30,215 - root - INFO - Test completed.
+
+2016-04-28 11:45:15,791 - root - INFO - BEGINNING TEST OF FUNCTION: "er_capacity".
+
+2016-04-28 11:45:23,624 - root - INFO - Running 2 networks per network size with p_connect = 0.1.
+2016-04-28 11:45:23,625 - root - INFO - Running networks of size 10.
+
+2016-04-28 11:45:23,625 - root - INFO - Building network # 1.
+
+2016-04-28 11:45:23,625 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,627 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,633 - root - INFO - Building network # 2.
+
+2016-04-28 11:45:23,633 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,636 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,641 - root - INFO - Running networks of size 12.
+
+2016-04-28 11:45:23,642 - root - INFO - Building network # 1.
+
+2016-04-28 11:45:23,642 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,643 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,646 - root - INFO - Building network # 2.
+
+2016-04-28 11:45:23,646 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,651 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,670 - root - INFO - Running networks of size 14.
+
+2016-04-28 11:45:23,671 - root - INFO - Building network # 1.
+
+2016-04-28 11:45:23,671 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,674 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,684 - root - INFO - Building network # 2.
+
+2016-04-28 11:45:23,685 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,688 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,698 - root - INFO - Running 3 networks per network size with p_connect = 0.2.
+2016-04-28 11:45:23,698 - root - INFO - Running networks of size 10.
+
+2016-04-28 11:45:23,698 - root - INFO - Building network # 1.
+
+2016-04-28 11:45:23,698 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,705 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,735 - root - INFO - Building network # 2.
+
+2016-04-28 11:45:23,735 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,740 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,751 - root - INFO - Building network # 3.
+
+2016-04-28 11:45:23,751 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,755 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,762 - root - INFO - Running networks of size 12.
+
+2016-04-28 11:45:23,762 - root - INFO - Building network # 1.
+
+2016-04-28 11:45:23,762 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,766 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,777 - root - INFO - Building network # 2.
+
+2016-04-28 11:45:23,777 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,783 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,798 - root - INFO - Building network # 3.
+
+2016-04-28 11:45:23,799 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,803 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,813 - root - INFO - Running networks of size 14.
+
+2016-04-28 11:45:23,813 - root - INFO - Building network # 1.
+
+2016-04-28 11:45:23,813 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,819 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,837 - root - INFO - Building network # 2.
+
+2016-04-28 11:45:23,837 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,851 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,927 - root - INFO - Building network # 3.
+
+2016-04-28 11:45:23,927 - root - INFO - Collecting sequences of length 3.
+2016-04-28 11:45:23,937 - root - INFO - Collecting sequences of length 4.
+
+2016-04-28 11:45:23,976 - root - INFO - Test completed.
+
