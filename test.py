@@ -93,6 +93,69 @@ class ConnectivityTestCase(unittest.TestCase):
 
         np.testing.assert_array_almost_equal(w, w_correct)
 
+    def test_hexagonal_lattice_is_created_correctly(self):
+
+        # make sure node set is made correctly
+
+        d = 4
+
+        nodes_correct = [
+                        (0, 3), (0, 5), (0, 7), (0, 9),
+                    (1, 2), (1, 4), (1, 6), (1, 8), (1, 10),
+                (2, 1), (2, 3), (2, 5), (2, 7), (2, 9), (2, 11),
+            (3, 0), (3, 2), (3, 4), (3, 6), (3, 8), (3, 10), (3, 12),
+                (4, 1), (4, 3), (4, 5), (4, 7), (4, 9), (4, 11),
+                    (5, 2), (5, 4), (5, 6), (5, 8), (5, 10),
+                        (6, 3), (6, 5), (6, 7), (6, 9),
+        ]
+
+        w, nodes = connectivity.hexagonal_lattice(d)
+
+        self.assertEqual(nodes, nodes_correct)
+        np.testing.assert_array_equal(w, w.T)
+
+        d = 3
+
+        nodes_correct = [
+                    (0, 2), (0, 4), (0, 6),
+                (1, 1), (1, 3), (1, 5), (1, 7),
+            (2, 0), (2, 2), (2, 4), (2, 6), (2, 8),
+                (3, 1), (3, 3), (3, 5), (3, 7),
+                    (4, 2), (4, 4), (4, 6),
+        ]
+
+        w, nodes = connectivity.hexagonal_lattice(d)
+
+        self.assertEqual(nodes, nodes_correct)
+        np.testing.assert_array_equal(w, w.T)
+
+        # make sure connectivity is made correctly on small example
+
+        d = 2
+
+        nodes_correct = [
+                (0, 1), (0, 3),
+            (1, 0), (1, 2), (1, 4),
+                (2, 1), (2, 3),
+        ]
+
+        w_correct = np.array([
+           # 0  0  1  1  1  2  2
+           # 1  3  0  2  4  1  3
+            [0, 1, 1, 1, 0, 0, 0],  # (0, 1)
+            [1, 0, 0, 1, 1, 0, 0],  # (0, 3)
+            [1, 0, 0, 1, 0, 1, 0],  # (1, 0)
+            [1, 1, 1, 0, 1, 1, 1],  # (1, 2)
+            [0, 1, 0, 1, 0, 0, 1],  # (1, 4)
+            [0, 0, 1, 1, 0, 0, 1],  # (2, 1)
+            [0, 0, 0, 1, 1, 1, 0],  # (2, 3)
+        ])
+
+        w, nodes = connectivity.hexagonal_lattice(d)
+
+        self.assertEqual(nodes, nodes_correct)
+        np.testing.assert_array_equal(w, w_correct)
+
 
 class NetworkProbabilityCalculationTestCase(unittest.TestCase):
 
