@@ -911,13 +911,17 @@ def simplified_connectivity_dependence(
 
     ## MAKE PLOT
 
-    fig, axs = plt.subplots(3, 2, figsize=FIG_SIZE, tight_layout=True)
+    fig, axs = plt.subplots(1, 3, figsize=FIG_SIZE, tight_layout=True)
 
     # B & C
 
     for c_ctr, control in enumerate(controls):
 
-        for g_x_ctr, (g_x, ax) in enumerate(zip([G_X, 0], axs[c_ctr, :])):
+        if control == 'zero':
+
+            continue
+
+        for g_x_ctr, (g_x, ax) in enumerate(zip([G_X, 0], axs[:-1])):
 
             handles = []
 
@@ -929,7 +933,7 @@ def simplified_connectivity_dependence(
 
                 elif control == 'zero':
 
-                    trials = np.array(decoding_accuracies_zero[g_x_ctr][seq_len])
+                    continue
 
                 acc_mean = np.mean(trials, axis=0)
                 acc_sem = stats.sem(trials, axis=0)
@@ -941,9 +945,11 @@ def simplified_connectivity_dependence(
                 ax.fill_between(
                     MATCH_PROPORTIONS, acc_mean - acc_sem, acc_mean + acc_sem, color=color, alpha=.3)
 
-            ax.set_xlabel('match proportion\n(mixed with {} connectivity)'.format(control))
+            ax.set_xlabel('match proportion'.format(control))
 
             if g_x_ctr == 0:
+
+                ax.legend(handles=handles, loc='best')
 
                 ax.set_title('Hyperexcitability on')
 
@@ -951,16 +957,14 @@ def simplified_connectivity_dependence(
 
                 ax.set_title('Hyperexcitability off')
 
-        axs[c_ctr, 0].set_ylabel('edit distance')
+        axs[0].set_ylabel('edit distance')
 
-    # D
+    axs[-1].semilogx(DENSITIES, guaranteed_replay_probability, color='k', lw=2)
 
-    axs[2, 0].semilogx(DENSITIES, guaranteed_replay_probability, color='k', lw=2)
+    axs[-1].set_xlabel('q')
+    axs[-1].set_ylabel('p(guaranteed replay)')
 
-    axs[2, 0].set_xlabel('q')
-    axs[2, 0].set_ylabel('p(guaranteed replay)')
-
-    ax_twin = axs[2, 0].twinx()
+    ax_twin = axs[-1].twinx()
 
     handles = []
 
@@ -969,9 +973,9 @@ def simplified_connectivity_dependence(
         handles.append(
             ax_twin.loglog(DENSITIES, expected_paths[n_ctr], lw=2, label='N = {}'.format(n))[0])
 
-    ax_twin.legend(handles=handles)
+    ax_twin.legend(handles=handles, loc='lower center')
 
-    ax_twin.set_ylabel('expected paths')
+    ax_twin.set_ylabel('expected paths from single ensemble')
 
     for ax in list(axs.flat) + [ax_twin]:
 
