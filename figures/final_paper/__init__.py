@@ -217,13 +217,24 @@ def lif_demo_two_branches(
     handles.append(axs[2].plot(ts, 1000 * p_4_voltage, color='k', lw=2, label='P4', zorder=1)[0])
     handles.append(axs[2].plot(ts, 1000 * m_4_voltage, color='b', lw=1, label='M4', zorder=0)[0])
 
+    # overlay spikes
+
+    p_4_spike_times = measurements['spikes'][:, 3].nonzero()[0] * DT
+    m_4_spike_times = measurements['spikes'][:, n_primary_cells + 3].nonzero()[0] * DT
+
+    for spike_times, color, lw in zip([p_4_spike_times, m_4_spike_times], ['k', 'b'], [2, 1]):
+
+        for spike_time in spike_times:
+
+            axs[2].axvline(spike_time, lw=lw, color=color)
+
     axs[2].axhline(1000 * V_TH, color='gray', ls='--')
 
     axs[2].set_xlim(*P_4_M_4_PLOT_LIMITS)
     axs[2].set_ylim(-90, 0)
     axs[2].set_ylabel('voltage (mV)')
     axs[2].set_title('voltages during initial stimulus')
-    axs[2].legend(handles=handles)
+    axs[2].legend(handles=handles, loc='best')
 
     # example primary voltages during replay
 
@@ -237,13 +248,25 @@ def lif_demo_two_branches(
     handles.append(axs[3].plot(ts, 1000 * p_4_voltage, color='k', lw=2, label='P4')[0])
     handles.append(axs[3].plot(ts, 1000 * p_7_voltage, color='g', lw=2, label='P7')[0])
 
+    # overlay spikes
+
+    p_3_spike_times = measurements['spikes'][:, 2].nonzero()[0] * DT
+    p_4_spike_times = measurements['spikes'][:, 3].nonzero()[0] * DT
+    p_7_spike_times = measurements['spikes'][:, 6].nonzero()[0] * DT
+
+    for spike_times, color in zip([p_3_spike_times, p_4_spike_times, p_7_spike_times], ['r', 'k', 'g']):
+
+        for spike_time in spike_times:
+
+            axs[3].axvline(spike_time, lw=2, color=color)
+
     axs[3].axhline(1000 * V_TH, color='gray', ls='--')
 
     axs[3].set_xlim(*P_3_P_4_P_7_PLOT_LIMITS)
     axs[3].set_ylim(-90, 0)
     axs[3].set_ylabel('voltage (mV)')
     axs[3].set_title('voltages during replay')
-    axs[3].legend(handles=handles)
+    axs[3].legend(handles=handles, loc='upper left')
 
     axs[-1].set_xlabel('time (s)')
 
