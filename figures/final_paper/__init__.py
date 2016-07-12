@@ -1472,7 +1472,7 @@ def lif_reverse_replay(
         REPLAY_TRIGGER_CELLS, REPLAY_TRIGGER_TIMES, REPLAY_TRIGGER_STRENS,
         MEMORY_RESET_STARTS, MEMORY_RESET_ENDS, MEMORY_RESET_STRENS, MEMORY_RESET_FRQS,
         SIM_DURATION, DT,
-        FIG_SIZE, SPIKE_HEIGHT, Y_LIM, FONT_SIZE):
+        FIG_SIZE, SYN_COLORS, SPIKE_HEIGHT, Y_LIM, FONT_SIZE):
 
 
     syns = TAUS_SYN.keys()
@@ -1539,6 +1539,8 @@ def lif_reverse_replay(
     n_steps = int(SIM_DURATION / DT)
 
     drives = {syn: np.zeros((n_steps, n_cells)) for syn in syns}
+
+    drives_pre_bkgd = {}
 
     for syn in syns:
 
@@ -1610,6 +1612,10 @@ def lif_reverse_replay(
 
             drives[syn][mr_times_idx, n_primary_cells:2 * n_primary_cells] += mr_stren
 
+        # make copy of drives without background
+
+        drives_pre_bkgd[syn] = drives[syn].copy()
+
         # add background
 
         for bkgd_ctr in range(len(BKGD_STARTS)):
@@ -1645,33 +1651,120 @@ def lif_reverse_replay(
 
     fig, axs = plt.subplots(2, 1, figsize=FIG_SIZE, tight_layout=True)
 
-    # primary spikes
+    # applied stimulus
 
-    primary_spikes = measurements['spikes'][:, :n_primary_cells].nonzero()
+    # re-map drive cells to y-coords
 
-    axs[0].scatter(primary_spikes[0] * DT, primary_spikes[1], s=SPIKE_HEIGHT, marker='|', c='k', lw=1)
+    drive_y_coords = np.nan * np.zeros((n_cells,))
+
+    offset_memory = 3
+
+    offset_primary = n_primary_cells + 5
+
+    # map inhibitory cells
+
+    drive_y_coords[-1] = 0
+
+    # map memory cells
+
+    drive_y_coords[n_primary_cells:2 * n_primary_cells] = range(
+        offset_memory, offset_memory + n_primary_cells)
+
+    # map primary cells
+
+    drive_y_coords[:n_primary_cells] = range(
+        offset_primary, offset_primary + n_primary_cells)
+
+    handles = []
+
+    for syn, color in SYN_COLORS.items():
+
+        drive_time_steps, drive_cells = drives_pre_bkgd[syn].nonzero()
+
+        # re map cell idxs to y-coords
+
+        drive_cell_ys = np.nan * np.zeros(drive_cells.shape)
+
+        for cell_idx, y_coord in enumerate(drive_y_coords):
+
+            drive_cell_ys[drive_cells == cell_idx] = y_coord
+
+        handles.append(
+            axs[0].scatter(
+                drive_time_steps * DT, drive_cell_ys,
+                s=SPIKE_HEIGHT, marker='|', c=color, lw=2, label=syn))
 
     axs[0].set_xlim(0, SIM_DURATION)
     axs[0].set_ylim(*Y_LIM)
 
+    # label neurons
+
+    axs[0].set_yticks([
+        0,
+        offset_memory, offset_memory + 9, offset_memory + 19, offset_memory + 29,
+        offset_primary, offset_primary + 9, offset_primary + 19, offset_primary + 29,
+    ])
+
+    axs[0].set_yticklabels([
+        'I1',
+        'M1', 'M10', 'M20', 'M30',
+        'P1', 'P10', 'P20', 'P30',
+    ])
+
     axs[0].set_ylabel('neuron')
-    axs[0].set_title('primary neuron spikes')
+    axs[0].set_title('applied stimulus')
+    axs[0].legend(handles=handles, loc='best')
+
+    # spike raster
+
+    # inhibitory spikes
+
+    inh_spikes = measurements['spikes'][:, -1:].nonzero()
+
+    axs[1].scatter(
+        inh_spikes[0] * DT, inh_spikes[1],
+        s=SPIKE_HEIGHT, marker='|', c='r', lw=2)
 
     # memory spikes
 
     memory_spikes = measurements['spikes'][:, n_primary_cells:2 * n_primary_cells].nonzero()
 
-    axs[1].scatter(memory_spikes[0] * DT, memory_spikes[1], s=SPIKE_HEIGHT, marker='|', c='b', lw=1)
+    axs[1].scatter(
+        memory_spikes[0] * DT, memory_spikes[1] + offset_memory,
+        s=SPIKE_HEIGHT, marker='|', c='g', lw=2)
+
+    # primary spikes
+
+    primary_spikes = measurements['spikes'][:, :n_primary_cells].nonzero()
+
+    axs[1].scatter(
+        primary_spikes[0] * DT, primary_spikes[1] + offset_primary,
+        s=SPIKE_HEIGHT, marker='|', c='k', lw=2)
 
     axs[1].set_xlim(0, SIM_DURATION)
     axs[1].set_ylim(*Y_LIM)
 
+    # label neurons
+
+    axs[1].set_yticks([
+        0,
+        offset_memory, offset_memory + 9, offset_memory + 19, offset_memory + 29,
+        offset_primary, offset_primary + 9, offset_primary + 19, offset_primary + 29,
+    ])
+
+    axs[1].set_yticklabels([
+        'I1',
+        'M1', 'M10', 'M20', 'M30',
+        'P1', 'P10', 'P20', 'P30',
+    ])
+
     axs[1].set_ylabel('neuron')
-    axs[1].set_title('memory neuron spikes')
+    axs[1].set_title('spike raster')
 
     axs[-1].set_xlabel('time (s)')
 
     for ax in axs:
+
         set_fontsize(ax, FONT_SIZE)
 
     return fig
