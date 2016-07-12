@@ -1713,7 +1713,7 @@ def lif_reverse_replay(
 
     axs[0].set_ylabel('neuron')
     axs[0].set_title('applied stimulus')
-    axs[0].legend(handles=handles, loc='best')
+    axs[0].legend(handles=handles, loc='lower right')
 
     # spike raster
 
