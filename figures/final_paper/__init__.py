@@ -27,7 +27,7 @@ def lif_demo_two_branches(
         MEMORY_RESET_STARTS, MEMORY_RESET_ENDS, MEMORY_RESET_STRENS, MEMORY_RESET_FRQS,
         SIM_DURATION, DT,
         P_4_M_4_PLOT_LIMITS, P_3_P_4_P_7_PLOT_LIMITS,
-        FIG_SIZE, FONT_SIZE):
+        FIG_SIZE, SYN_COLORS, FONT_SIZE):
 
 
     syns = TAUS_SYN.keys()
@@ -41,6 +41,7 @@ def lif_demo_two_branches(
     n_cells = 2 * n_primary_cells + 1
 
     drives = {syn: np.zeros((n_steps, n_cells)) for syn in syns}
+    drives_pre_bkgd = {}
 
     for syn in syns:
 
@@ -100,9 +101,14 @@ def lif_demo_two_branches(
 
             drives[syn][mr_times_idx, n_primary_cells:2 * n_primary_cells] += mr_stren
 
+        # save pre-background drives
+
+        drives_pre_bkgd[syn] = drives[syn].copy()
+
         # add background
 
         for bkgd_ctr in range(len(BKGD_STARTS)):
+
             bkgd_start_idx = int(BKGD_STARTS[bkgd_ctr][syn] / DT)
             bkgd_end_idx = int(BKGD_ENDS[bkgd_ctr][syn] / DT)
             bkgd_frq = BKGD_FRQS[bkgd_ctr][syn]
@@ -179,6 +185,57 @@ def lif_demo_two_branches(
 
     # stimulus plot
 
+    # re-map drive cells to y-coords
+
+    drive_y_coords = np.nan * np.zeros((n_cells,))
+
+    # map inhibitory cells
+
+    drive_y_coords[-1] = 0
+
+    # map memory cells
+
+    drive_y_coords[n_primary_cells:2 * n_primary_cells] = range(2, 2 + n_primary_cells)
+
+    # map primary cells
+
+    drive_y_coords[:n_primary_cells] = range(n_primary_cells + 3, 2 * n_primary_cells + 3)
+
+    handles = []
+
+    for syn, color in SYN_COLORS.items():
+
+        drive_time_steps, drive_cells = drives_pre_bkgd[syn].nonzero()
+
+        # re map cell idxs to y-coords
+
+        drive_cell_ys = np.nan * np.zeros(drive_cells.shape)
+
+        for cell_idx, y_coord in enumerate(drive_y_coords):
+
+            drive_cell_ys[drive_cells == cell_idx] = y_coord
+
+        handles.append(
+            axs[0].scatter(
+                drive_time_steps * DT, drive_cell_ys,
+                s=200, marker='|', c=color, lw=2, label=syn))
+
+    axs[0].set_xlim(0, SIM_DURATION)
+    axs[0].set_ylim(-1, n_cells + 3)
+
+    axs[0].set_yticks(
+        [0,  # inhibitory
+         2, 5, 8, 2 + n_primary_cells - 1,  # M1, M4, M7, M9
+         n_primary_cells + 3, n_primary_cells + 6,  # P1, P4
+         n_primary_cells + 9, 2 * n_primary_cells + 2,  # P7, P9
+         ])
+
+    axs[0].set_yticklabels(['I1', 'M1', 'M4', 'M7', 'M9', 'P1', 'P4', 'P7', 'P9'])
+
+    axs[0].set_ylabel('neuron')
+    axs[0].set_title('applied stimulus')
+
+    axs[0].legend(handles=handles, loc='best')
 
     # raster plots
 
@@ -198,7 +255,7 @@ def lif_demo_two_branches(
 
     axs[1].scatter(
         memory_spikes[0] * DT, memory_spikes[1] + offset_memory,
-        s=150, marker='|', c='b', lw=1)
+        s=150, marker='|', c='g', lw=1)
 
     # primary spikes
 
@@ -209,7 +266,6 @@ def lif_demo_two_branches(
     axs[1].scatter(
         primary_spikes[0] * DT, primary_spikes[1] + offset_primary,
         s=200, marker='|', c='k', lw=1)
-
 
     axs[1].set_xlim(0, SIM_DURATION)
     axs[1].set_ylim(-1, n_cells + 3)
@@ -236,18 +292,18 @@ def lif_demo_two_branches(
     handles = []
 
     handles.append(axs[2].plot(ts, 1000 * p_4_voltage, color='k', lw=2, label='P4', zorder=1)[0])
-    handles.append(axs[2].plot(ts, 1000 * m_4_voltage, color='b', lw=1, label='M4', zorder=0)[0])
+    handles.append(axs[2].plot(ts, 1000 * m_4_voltage, color='g', lw=2, label='M4', zorder=0)[0])
 
     # overlay spikes
 
     p_4_spike_times = measurements['spikes'][:, 3].nonzero()[0] * DT
     m_4_spike_times = measurements['spikes'][:, n_primary_cells + 3].nonzero()[0] * DT
 
-    for spike_times, color, lw in zip([p_4_spike_times, m_4_spike_times], ['k', 'b'], [2, 1]):
+    for spike_times, color in zip([p_4_spike_times, m_4_spike_times], ['k', 'g']):
 
         for spike_time in spike_times:
 
-            axs[2].axvline(spike_time, lw=lw, color=color)
+            axs[2].axvline(spike_time, lw=2, color=color)
 
     axs[2].axhline(1000 * V_TH, color='gray', ls='--')
 
@@ -265,9 +321,9 @@ def lif_demo_two_branches(
 
     handles = []
 
-    handles.append(axs[3].plot(ts, 1000 * p_3_voltage, color='r', lw=2, label='P3')[0])
-    handles.append(axs[3].plot(ts, 1000 * p_4_voltage, color='k', lw=2, label='P4')[0])
-    handles.append(axs[3].plot(ts, 1000 * p_7_voltage, color='g', lw=2, label='P7')[0])
+    handles.append(axs[3].plot(ts, 1000 * p_3_voltage, color='k', lw=2, label='P3')[0])
+    handles.append(axs[3].plot(ts, 1000 * p_4_voltage, color='m', lw=2, label='P4')[0])
+    handles.append(axs[3].plot(ts, 1000 * p_7_voltage, color='c', lw=2, label='P7')[0])
 
     # overlay spikes
 
@@ -275,7 +331,7 @@ def lif_demo_two_branches(
     p_4_spike_times = measurements['spikes'][:, 3].nonzero()[0] * DT
     p_7_spike_times = measurements['spikes'][:, 6].nonzero()[0] * DT
 
-    for spike_times, color in zip([p_3_spike_times, p_4_spike_times, p_7_spike_times], ['r', 'k', 'g']):
+    for spike_times, color in zip([p_3_spike_times, p_4_spike_times, p_7_spike_times], ['k', 'm', 'c']):
 
         for spike_time in spike_times:
 
