@@ -177,33 +177,54 @@ def lif_demo_two_branches(
 
     fig, axs = plt.subplots(4, 1, figsize=FIG_SIZE, tight_layout=True)
 
-    # primary spikes
+    # stimulus plot
 
-    primary_spikes = measurements['spikes'][:, :n_primary_cells].nonzero()
 
-    axs[0].scatter(primary_spikes[0] * DT, primary_spikes[1], s=200, marker='|', c='k', lw=1)
+    # raster plots
 
-    axs[0].set_xlim(0, SIM_DURATION)
-    axs[0].set_ylim(-1, n_primary_cells)
+    # inhibitory spikes
 
-    axs[0].set_ylabel('neuron')
-    axs[0].set_yticks([0, 2, 4, 6, 8])
-    axs[0].set_yticklabels(['P1', 'P3', 'P5', 'P7', 'P9'])
-    axs[0].set_title('primary neuron spikes')
+    inh_spikes = measurements['spikes'][:, -1:].nonzero()
+
+    axs[1].scatter(
+        inh_spikes[0] * DT, inh_spikes[1],
+        s=200, marker='|', c='r', lw=1)
 
     # memory spikes
 
     memory_spikes = measurements['spikes'][:, n_primary_cells:2 * n_primary_cells].nonzero()
 
-    axs[1].scatter(memory_spikes[0] * DT, memory_spikes[1], s=150, marker='|', c='b', lw=1)
+    offset_memory = 2
+
+    axs[1].scatter(
+        memory_spikes[0] * DT, memory_spikes[1] + offset_memory,
+        s=150, marker='|', c='b', lw=1)
+
+    # primary spikes
+
+    primary_spikes = measurements['spikes'][:, :n_primary_cells].nonzero()
+
+    offset_primary = n_primary_cells + 3
+
+    axs[1].scatter(
+        primary_spikes[0] * DT, primary_spikes[1] + offset_primary,
+        s=200, marker='|', c='k', lw=1)
+
 
     axs[1].set_xlim(0, SIM_DURATION)
-    axs[1].set_ylim(-1, n_primary_cells)
+    axs[1].set_ylim(-1, n_cells + 3)
 
     axs[1].set_ylabel('neuron')
-    axs[1].set_yticks([0, 2, 4, 6, 8])
-    axs[1].set_yticklabels(['M1', 'M3', 'M5', 'M7', 'M9'])
-    axs[1].set_title('memory neuron spikes')
+    axs[1].set_yticks(
+        [0,  # inhibitory
+         2, 5, 8, 2 + n_primary_cells - 1,  # M1, M4, M7, M9
+         n_primary_cells + 3, n_primary_cells + 6,  # P1, P4
+         n_primary_cells + 9, 2 * n_primary_cells + 2,  # P7, P9
+         ])
+
+    axs[1].set_yticklabels(['I1', 'M1', 'M4', 'M7', 'M9', 'P1', 'P4', 'P7', 'P9'])
+
+    axs[1].set_title('spike raster')
 
     # example primary and memory voltages during initial drive
 
