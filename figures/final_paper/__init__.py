@@ -988,7 +988,7 @@ def simplified_connectivity_dependence(
 
                         # calculate decoding accuracy
 
-                        acc = metrics.levenshtein(drive_seq, rs_seq)
+                        acc = np.all(drive_seq == rs_seq)
 
                         if control == 'random':
 
@@ -1062,12 +1062,14 @@ def simplified_connectivity_dependence(
 
                 ax.set_title('Hyperexcitability off')
 
-        axs[0].set_ylabel('edit distance')
+            ax.set_ylim(0, 1)
+
+        axs[0].set_ylabel('correct decoding probability')
 
     axs[-1].semilogx(DENSITIES, guaranteed_replay_probability, color='k', lw=2)
 
-    axs[-1].set_xlabel('q')
-    axs[-1].set_ylabel('p(guaranteed replay)')
+    axs[-1].set_xlabel('density (q)')
+    axs[-1].set_ylabel('guaranteed replay probability')
 
     ax_twin = axs[-1].twinx()
 
@@ -1080,7 +1082,7 @@ def simplified_connectivity_dependence(
 
     ax_twin.legend(handles=handles, loc='lower center')
 
-    ax_twin.set_ylabel('expected paths from single ensemble')
+    ax_twin.set_ylabel('memory content (colored lines)')
 
     for ax in list(axs.flat) + [ax_twin]:
 
@@ -1381,7 +1383,7 @@ def simplified_reverse_replay(
         LATTICE_SIZE,
         G_W, G_X, G_D, T_X, G_RF, T_RF,
         DRIVE_SEQS, TRIGGERS,
-        AX_SIZE, FONT_SIZE):
+        AX_SIZE, X_LIM, Y_LIM, STIM_RISE, FONT_SIZE):
     """
     Demonstrate reverse replay via refractoriness on a hexagonal lattice network.
     """
@@ -1442,9 +1444,9 @@ def simplified_reverse_replay(
 
     # MAKE PLOTS
 
-    fig_size = [AX_SIZE[0], AX_SIZE[1] * len(DRIVE_SEQS)]
+    fig_size = [AX_SIZE[0] * len(DRIVE_SEQS), AX_SIZE[1]]
 
-    fig, axs = plt.subplots(len(DRIVE_SEQS), 1, figsize=fig_size, tight_layout=True)
+    fig, axs = plt.subplots(1, len(DRIVE_SEQS), figsize=fig_size, tight_layout=True)
 
     if len(DRIVE_SEQS) == 1:
 
@@ -1452,18 +1454,23 @@ def simplified_reverse_replay(
 
     for ctr, (ax, rs, drives) in enumerate(zip(axs, rs_all, drives_all)):
 
-        fancy_raster_arrows_above(ax, rs, drives, spike_marker_size=40, arrow_marker_size=80, rise=6)
+        fancy_raster_arrows_above(
+            ax, rs, drives, spike_marker_size=40,
+            arrow_marker_size=80, rise=STIM_RISE)
 
         x_fill = [-0.5, len(DRIVE_SEQS[ctr]) - 0.5]
 
-        y_fill_lower = [-1, -1]
-        y_fill_upper = [n_nodes + 1, n_nodes + 1]
+        y_fill_lower = [Y_LIM[0], Y_LIM[0]]
+        y_fill_upper = [Y_LIM[1], Y_LIM[1]]
 
         ax.fill_between(x_fill, y_fill_lower, y_fill_upper, color='r', alpha=0.1)
 
+        ax.set_xlim(*X_LIM)
+        ax.set_ylim(*Y_LIM)
+
         ax.set_xlabel('time step')
-        ax.set_ylabel('node')
-        ax.set_title('Simplified model reverse replay example {}'.format(ctr + 1))
+        ax.set_ylabel('ensemble')
+        ax.set_title('stimulus sequence {}'.format(ctr + 1))
 
     for ax in axs:
 
