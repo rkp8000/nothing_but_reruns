@@ -695,7 +695,7 @@ def simplified_ff_properties(
         SEED, GRID_SHAPE, LATERAL_SPREAD, G_W, G_X, G_D, T_X,
         DRIVE_0, DRIVE_1A, DRIVE_1B, N_REPEATS,
         FOCUSED_STIM_0, FOCUSED_STIM_1, DISTRIBUTED_STIM,
-        Y_MAX_DISTRIBUTED_STIM,
+        Y_MAX_DISTRIBUTED_STIM, STIM_RISE_OVERLAP, STIM_RISE_DISTRIBUTED,
         FIG_SIZE, FONT_SIZE):
     """
     Demonstrate some properties of the simplified feed-forward network.
@@ -819,11 +819,13 @@ def simplified_ff_properties(
 
     # MAKE PLOTS
 
-    fig, axs = plt.subplots(4, 1, figsize=FIG_SIZE, tight_layout=True)
+    fig = plt.figure(figsize=FIG_SIZE, tight_layout=True)
+
+    axs = [fig.add_subplot(3, 1, ctr + 1) for ctr in range(2)]
 
     fancy_raster_arrows_above(
         axs[0], rs_non_ovlp, drives_non_ovlp,
-        spike_marker_size=40, arrow_marker_size=80, rise=6)
+        spike_marker_size=40, arrow_marker_size=80, rise=STIM_RISE_OVERLAP)
 
     x_fill = [-0.5, 2 * len(DRIVE_0) - 0.5]
     y_fill_lower = [-1, -1]
@@ -835,11 +837,11 @@ def simplified_ff_properties(
     axs[0].set_ylim(-1, n_nodes)
     axs[0].set_xlabel('time step')
     axs[0].set_ylabel('ensemble')
-    axs[0].set_title('non-overlapping stim sequences')
+    axs[0].set_title('replay of non-overlapping stimulus sequences')
 
     fancy_raster_arrows_above(
         axs[1], rs_ovlp, drives_ovlp,
-        spike_marker_size=40, arrow_marker_size=80, rise=6)
+        spike_marker_size=40, arrow_marker_size=80, rise=STIM_RISE_OVERLAP)
 
     axs[1].fill_between(x_fill, y_fill_lower, y_fill_upper, color='red', alpha=0.1)
 
@@ -847,11 +849,14 @@ def simplified_ff_properties(
     axs[1].set_ylim(-1, n_nodes)
     axs[1].set_xlabel('time step')
     axs[1].set_ylabel('ensemble')
-    axs[1].set_title('overlapping stim sequences')
+    axs[1].set_title('replay of overlapping stimulus sequences')
+
+    axs.append(fig.add_subplot(3, 2, 5))
+    axs.append(fig.add_subplot(3, 2, 6))
 
     fancy_raster_arrows_above(
         axs[2], rs_distributed_stim_0, drives_distributed_stim_0,
-        spike_marker_size=40, arrow_marker_size=80, rise=2)
+        spike_marker_size=40, arrow_marker_size=80, rise=STIM_RISE_DISTRIBUTED)
 
     x_fill = [-0.5, len(FOCUSED_STIM_0) - 0.5]
     y_fill_lower = [-1, -1]
@@ -863,11 +868,11 @@ def simplified_ff_properties(
     axs[2].set_ylim(-1, Y_MAX_DISTRIBUTED_STIM)
     axs[2].set_xlabel('time step')
     axs[2].set_ylabel('ensemble')
-    axs[2].set_title('distributed stimulus response following sequence 1')
+    axs[2].set_title('ambiguous stimulus following \nfocused stimulus sequence 1')
 
     fancy_raster_arrows_above(
         axs[3], rs_distributed_stim_1, drives_distributed_stim_1,
-        spike_marker_size=40, arrow_marker_size=80, rise=2)
+        spike_marker_size=40, arrow_marker_size=80, rise=STIM_RISE_DISTRIBUTED)
 
     axs[3].fill_between(x_fill, y_fill_lower, y_fill_upper, color='red', alpha=0.1)
 
@@ -875,7 +880,7 @@ def simplified_ff_properties(
     axs[3].set_ylim(-1, Y_MAX_DISTRIBUTED_STIM)
     axs[3].set_xlabel('time step')
     axs[3].set_ylabel('ensemble')
-    axs[3].set_title('distributed stimulus response following sequence 2')
+    axs[3].set_title('ambiguous stimulus following \nfocused stimulus sequence 2')
 
     for ax in axs:
 
@@ -1196,30 +1201,32 @@ def simplified_connectivity_dependence_current_stim_decoding(
     # the top row will be decoding accuracies for all sequence lengths
 
     axs = [
-        fig.add_subplot(2 + len(MATCH_PROPORTION_SEQUENCE_LENGTHS), n_seq_lens, ctr + 1)
+        fig.add_subplot(3, n_seq_lens, ctr + 1)
         for ctr in range(n_seq_lens)
     ]
 
     # the bottom row is example decoding accuracy time courses
 
-    axs.append(fig.add_subplot(2 + len(MATCH_PROPORTION_SEQUENCE_LENGTHS), 1, 2))
+    axs.append(fig.add_subplot(3, 1, 2))
 
     for ax, seq_len in zip(axs[:-1], DECODING_SEQUENCE_LENGTHS):
 
         for key, color in zip(keys, COLORS):
+
             ax.plot(G_DS, decoding_accuracies[key][seq_len][:-1], c=color, lw=2)
 
         ax.set_xlim(G_DS[0], G_DS[-1])
         ax.set_ylim(0, 1.1)
 
-        ax.set_xlabel('g_d')
+        ax.set_xlabel(r'$g_s$')
 
-    axs[0].set_ylabel('decoding accuracy')
+    axs[0].set_ylabel('correct decoding\nprobability')
 
     for ax, seq_len in zip(axs[:-1], DECODING_SEQUENCE_LENGTHS):
-        ax.set_title('Length {} sequences'.format(seq_len))
 
-    axs[0].legend(keys, loc='best')
+        ax.set_title('length {} sequences'.format(seq_len))
+
+    axs[0].legend([key.replace('_', '-') for key in keys], loc='best')
 
     for ctr, (key, color) in enumerate(zip(keys, COLORS)):
         decoding_results = decoding_results_examples[key]
@@ -1231,6 +1238,8 @@ def simplified_connectivity_dependence_current_stim_decoding(
     axs[-1].set_xlim(0, N_TIME_POINTS_EXAMPLE)
     axs[-1].set_ylim(-1, 2 * len(keys) + 1)
 
+    axs[-1].set_yticks(range(8))
+    axs[-1].set_yticklabels(['N', 'Y'] * 4)
     axs[-1].set_xlabel('time step')
     axs[-1].set_ylabel('correct decoding')
 
@@ -1330,7 +1339,7 @@ def simplified_connectivity_dependence_current_stim_decoding(
 
     for ctr in range(n_seq_lens):
 
-        axs.append(fig.add_subplot(2 + n_seq_lens, 1, 2 + ctr + 1))
+        axs.append(fig.add_subplot(3, n_seq_lens, 3 * (n_seq_lens - 1) + ctr + 2))
 
     for ax, seq_len in zip(axs[-n_seq_lens:], MATCH_PROPORTION_SEQUENCE_LENGTHS):
 
@@ -1343,21 +1352,22 @@ def simplified_connectivity_dependence_current_stim_decoding(
             accs_mean = accs.mean(axis=0)
             accs_sem = stats.sem(accs, axis=0)
 
-            handles.append(ax.plot(MATCH_PROPORTIONS, accs_mean, c=color, lw=2, label=key, zorder=1)[0])
+            label = key.replace('_', '-')
+            handles.append(ax.plot(MATCH_PROPORTIONS, accs_mean, c=color, lw=2, label=label, zorder=1)[0])
 
             ax.fill_between(
                 MATCH_PROPORTIONS, accs_mean - accs_sem, accs_mean + accs_sem,
                 color=color, alpha=0.1)
 
-        ax.legend(handles=handles, loc='upper left')
-
         ax.set_xlim(0, 1)
         ax.set_ylim(-.1, 1.1)
 
         ax.set_xlabel('match proportion')
-        ax.set_ylabel('decoding accuracy')
 
         ax.set_title('length {} sequences'.format(seq_len))
+
+    axs[-2].legend(handles=handles, loc='upper left')
+    axs[-2].set_ylabel('correct decoding\nprobability')
 
     for ax in axs:
 
