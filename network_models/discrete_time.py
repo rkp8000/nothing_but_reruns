@@ -14,9 +14,55 @@ def _calculate_softmax_probability(inputs):
     return prob / prob.sum()
 
 
+class BasicWithLingeringHyperexcitability(object):
+    """
+    Most basic model with activation-triggered lingering hyperexcitability.
+    """
+
+    def __init__(self, th, w, g_x, t_x):
+
+        self.th = th
+        self.w = w
+        self.g_x = g_x
+        self.p_relax = 1. / (1 + t_x)
+
+        self.n_nodes = w.shape[0]
+
+    def run(self, r_0, xc_0, drives, noise_level):
+        """
+        Run the network from a starting state by providing a stimulus.
+        """
+
+        rs = np.nan * np.zeros((self.n_nodes, len(drives)))
+        xcs = np.nan * np.zeros((self.n_nodes, len(drives)))
+
+        r = r_0.copy()
+        xc = xc_0.copy()
+
+        for t, drive in enumerate(drives):
+
+            if t > 0:
+
+                # calculate inputs and compare them to threshold
+                noise = noise_level * np.random.normal(0, 1, self.n_nodes)
+                r = (self.w.dot(r) + drive + self.g_x*xc + noise > self.th).astype(int)
+
+            # store active units and make them hyperexcitable
+            rs[:, t] = r
+            xc[r > 0] = 1
+
+            # probabilistically turn off hyperexcitabilities
+            xc[np.random.rand(self.n_nodes) < self.p_relax] = 0
+
+            xcs[:, t] = xc.copy()
+
+        return rs.T, xcs.T
+
+
 class SoftmaxWTAWithLingeringHyperexcitability(object):
     """
-    Most basic network model with activation-dependent excitability changes.
+    Network model with activation-dependent excitability changes and winner-take-all
+    rule enforcing one node active per timestep.
 
     In this network, exactly one node is allowed to be active at each time step. Which node becomes active
     is chosen with a probability that depends exponentially on its input (i.e., according to the softmax function).
