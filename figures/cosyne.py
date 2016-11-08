@@ -2,7 +2,7 @@
 Figures for Cosyne 2017 abstract.
 """
 from __future__ import division, print_function
-import matplotlib.pyplot as plt; plt.style.use('ggplot')
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 from scipy import stats
@@ -60,7 +60,7 @@ def toy_network_simplified(TH, G_W, G_X, T_X, RP):
     rs, _ = ntwk.run(r_0, xc_0, 5*drives, noise_level=0)
 
     # set up figures
-    fig, axs = plt.subplots(2, 1, figsize=(7.5, 5), tight_layout=True, sharex=True, sharey=True)
+    fig, axs = plt.subplots(2, 1, figsize=(3, 4), tight_layout=True, sharex=True, sharey=True)
 
     # plot drives
     drive_times, drive_idxs = drives.nonzero()
@@ -96,7 +96,8 @@ def toy_network_lif(
         SEQ_START, SEQ_DUR, SEQ_STAGGER, SEQ_FREQ, SEQ_AMP,
         REPLAY_START, REPLAY_DUR, REPLAY_FREQ, REPLAY_AMP,
         RESET_START, RESET_DUR, RESET_AMP, RESET_FREQ,
-        BKGD_GABA_AMP, BKGD_GABA_FREQ):
+        BKGD_GABA_AMP, BKGD_GABA_FREQ,
+        BKGD_GABA_AMP_MEM, BKGD_GABA_FREQ_MEM):
     """
     Demonstrate replay in a toy network.
     """
@@ -197,6 +198,10 @@ def toy_network_lif(
 
         drives['gaba'][start:end, :7] = inputs
 
+    # inhibitory background to memory units
+    drives['gaba'][:, 7:14] += \
+        BKGD_GABA_AMP_MEM * (np.random.rand(len(drives['gaba']), 7) < (BKGD_GABA_FREQ_MEM*dt)).astype(float)
+
     # set initial network conditions
     initial_conditions = {
         'voltages': v_rests,
@@ -209,8 +214,8 @@ def toy_network_lif(
         initial_conditions=initial_conditions, drives=drives, dt=dt, record=('voltages', 'spikes'))
 
     # make plots
-    fig, axs = plt.subplots(2, 1, figsize=(7.5, 5), sharex=True, sharey=True, tight_layout=True)
-    marker_size = 30
+    fig, axs = plt.subplots(2, 1, figsize=(7, 4), sharex=True, sharey=True, tight_layout=True)
+    marker_size = 15
 
     handles = []
 
@@ -219,7 +224,7 @@ def toy_network_lif(
     drive_times = dt * drive_times.astype(float)
 
     handles.append(axs[0].scatter(
-        drive_times, drive_idxs + 14, marker='|', s=marker_size, c='b', label='AMPA'))
+        drive_times, drive_idxs + 14, marker='|', s=marker_size, lw=1.5, c='b', label='AMPA'))
 
     # plot gaba drives to memory neurons
     drive_times, drive_idxs = drives['gaba'][:, 7:14].nonzero()
@@ -232,7 +237,7 @@ def toy_network_lif(
     spike_times, spike_idxs = measurements['spikes'][:, :7].nonzero()
     spike_times = dt * spike_times.astype(float)
 
-    axs[1].scatter(spike_times, spike_idxs + 14, marker='|', s=marker_size, c='k')
+    axs[1].scatter(spike_times, spike_idxs + 14, marker='|', lw=1.3, s=marker_size, c='k')
 
     # plot memory spikes
     spike_times, spike_idxs = measurements['spikes'][:, 7:14].nonzero()
@@ -247,7 +252,8 @@ def toy_network_lif(
     axs[1].scatter(spike_times, spike_idxs, marker='|', s=marker_size, c='r')
 
     for ax in axs:
-        ax.set_xlim(0, dur)
+        ax.set_xlim(0, 8)
+        ax.set_ylim(-1, 21)
         ax.set_yticks([0, 4, 7, 10, 14, 17, 20])
         ax.set_yticklabels(['I1', 'M1', 'M4', 'M7', 'P1', 'P4', 'P7'])
         ax.set_ylabel('neuron')
@@ -255,8 +261,6 @@ def toy_network_lif(
     axs[0].set_title('stimulus')
     axs[1].set_title('spikes')
     axs[1].set_xlabel('time (s)')
-
-    axs[0].legend(handles=handles)
 
     for ax in axs: set_fontsize(ax, 12)
 
@@ -313,24 +317,12 @@ def replay_statistics(
 
     np.random.seed(SEED)
 
-    fig, axs = plt.subplots(2, 2, figsize=(7.5, 5), tight_layout=True)
+    fig = plt.figure(figsize=(10, 4), tight_layout=True)
+    axs = [fig.add_subplot(1, 3, 1)]
+    axs.append(fig.add_subplot(1, 3, 2, sharey=axs[0]))
+    axs.append(fig.add_subplot(1, 3, 3))
 
-    colors = get_n_colors(len(LS), 'rainbow')
-
-    # plot capacity analysis and optimal density
-    qs = np.linspace(0, 1, 100)
-
-    for l, color in zip(LS, colors):
-
-        relative_capacity = (qs ** (l-1))*((1 - qs) ** ((l-1)*(l-2)))
-        relative_capacity /= relative_capacity.max()
-        axs[0, 0].plot(qs, relative_capacity, lw=2, color=color)
-
-    axs[0, 0].set_xlim(0, 1)
-    axs[0, 0].set_ylim(0, 1.1)
-
-    axs[0, 0].set_xlabel('density')
-    axs[0, 0].set_ylabel('relative capacity')
+    colors = get_n_colors(len(LS) + 1, 'hsv')[:-1]
 
     # plot replay probability vs. stimulus-matched connectivity percentage
     match_percentages = np.linspace(0, 1, 11, endpoint=True)
@@ -398,16 +390,19 @@ def replay_statistics(
 
         mean = np.mean(replay_probs, axis=0)
         sem = stats.sem(replay_probs, axis=0)
-        handles.append(axs[0, 1].plot(
+        handles.append(axs[0].plot(
             match_percentages, mean, color=color, lw=2, label='L = {}'.format(l), zorder=1)[0])
-        axs[0, 1].fill_between(
+        axs[0].fill_between(
             match_percentages, mean-sem, mean+sem, color=color, zorder=0, alpha=0.2)
 
-        axs[0, 1].set_xlim(0, 1)
-        axs[0, 1].set_ylim(0, 1.1)
-        axs[0, 1].set_xlabel('match proportion')
-        axs[0, 1].set_ylabel('correct replay\npropbability')
-        axs[0, 1].legend(handles=handles, loc='best')
+        axs[0].set_xticks([0, .2, .4, .6, .8, 1])
+        axs[0].set_xticklabels(['0', '.2', '.4', '.6', '.8', '1'])
+
+        axs[0].set_xlim(0, 1)
+        axs[0].set_ylim(0, 1.1)
+        axs[0].set_xlabel('match proportion')
+        axs[0].set_ylabel('p(correct replay)')
+        axs[0].legend(handles=handles, loc='best')
 
     # plot replay probability and memory content
     ls_qs = ['-', '--', '-.']
@@ -417,7 +412,7 @@ def replay_statistics(
         guaranteed_replay_probability = \
             (1 - QS) ** ((l - 1) * (l - 2))
 
-        axs[1, 0].semilogx(QS, guaranteed_replay_probability, color=color, lw=2)
+        axs[1].semilogx(QS, guaranteed_replay_probability, color=color, lw=2)
 
         for q, ls in zip(QS_MEMORY_CONTENT, ls_qs):
 
@@ -429,15 +424,16 @@ def replay_statistics(
             memory_content = np.array(memory_content)
             memory_content[memory_content < 1] = np.nan
 
-            axs[1, 1].loglog(NS_MEMORY_CONTENT, memory_content, color=color, ls=ls, lw=2)
+            axs[2].loglog(NS_MEMORY_CONTENT, memory_content, color=color, ls=ls, lw=2)
 
-    axs[1, 0].set_xlabel('density')
-    axs[1, 0].set_ylabel('guaranteed replay\nprobability')
+    axs[1].set_xlabel('density')
 
-    axs[1, 1].set_xlabel('N')
-    axs[1, 1].set_ylabel('memory content')
+    axs[2].set_xlabel('N')
+    axs[2].set_ylabel('memory content')
 
-    for ax in axs.flatten(): set_fontsize(ax, 12)
+    axs[2].set_yticks(axs[2].get_yticks()[::4])
+
+    for ax in axs: set_fontsize(ax, 14)
 
     return fig
 
@@ -493,16 +489,17 @@ def reverse_replay_simplified(TH, G_W, G_X, T_X, RP):
     xc_0 = np.zeros((n_nodes,))
     rs, _ = ntwk.run(r_0, xc_0, 5*drives, 0)
 
-    fig, axs = plt.subplots(2, 1, figsize=(7.5, 5), tight_layout=True, sharex=True, sharey=True)
+    fig, axs = plt.subplots(2, 1, figsize=(4.5, 4), tight_layout=True, sharex=True, sharey=True)
 
     # plot drives
+    marker_size = 12
     drive_times, drive_idxs = drives.nonzero()
-    axs[0].scatter(drive_times, drive_idxs, c='b', lw=0)
+    axs[0].scatter(drive_times, drive_idxs, s=marker_size, c='b', lw=0)
     axs[0].set_title('stimulus')
 
     # plot spikes
     spike_times, spike_idxs = rs.nonzero()
-    axs[1].scatter(spike_times, spike_idxs, c='k', lw=0)
+    axs[1].scatter(spike_times, spike_idxs, s=marker_size, c='k', lw=0)
 
     axs[1].set_xlabel('time step')
     axs[1].set_title('spikes')
@@ -510,12 +507,16 @@ def reverse_replay_simplified(TH, G_W, G_X, T_X, RP):
     ticks = np.arange(0, n_nodes, n_nodes // 5)
 
     for ax in axs:
+        ax.set_xlim(-1, 85)
+        ax.set_ylim(-3, 25)
         ax.set_ylabel('unit')
         ax.set_yticks(ticks)
         ax.set_yticklabels(ticks + 1)
-        set_fontsize(ax, 12)
+        set_fontsize(ax, 14)
 
-    return fig, w, nodes
+    axs[1].set_ylim(-3, 25)
+
+    return fig
 
 
 def reverse_replay_lif(
