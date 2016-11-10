@@ -108,16 +108,14 @@ def hexagonal_lattice(d):
     """
     Create a connectivity matrix corresponding to a hexagonal lattice with bidirectional
     connections between adjacent nodes.
-    :param d: dimension of grid
+    :param d: dimension of grid (length of outer hexagonal edge)
     :return: binary weight matrix
     """
 
     # make nodes
-
     nodes = []
 
     # top d rows
-
     for row_ctr in range(d):
 
         col_key_start = d - row_ctr - 1
@@ -126,63 +124,54 @@ def hexagonal_lattice(d):
 
             row_key = row_ctr
             col_key = 2*col_ctr + col_key_start
-
             nodes.append((row_key, col_key))
 
     # bottom d - 1 rows
-
     for row_ctr in range(1, d):
-
         col_key_start = row_ctr
 
         for col_ctr in range(2 * d - row_ctr - 1):
 
             row_key = d + row_ctr - 1
             col_key = 2*col_ctr + col_key_start
-
             nodes.append((row_key, col_key))
 
     n_nodes = len(nodes)
-
     assert n_nodes == len(set(nodes))
 
     # make connectivity matrix
-
     w = np.zeros((n_nodes, n_nodes))
 
     for node in nodes:
 
         # get node's targets
-
         targs = []
 
         # prev row
-
         targs.append((node[0] - 1, node[1] - 1))
         targs.append((node[0] - 1, node[1] + 1))
 
         # same row
-
         targs.append((node[0], node[1] - 2))
         targs.append((node[0], node[1] + 2))
 
         # next row
-
         targs.append((node[0] + 1, node[1] - 1))
         targs.append((node[0] + 1, node[1] + 1))
 
         # remove connections to nonexisting nodes
-
         targs = [targ for targ in targs if targ in nodes]
 
         # add connections to w
-
         src_idx = nodes.index(node)
 
         for targ in targs:
 
             targ_idx = nodes.index(targ)
-
             w[targ_idx, src_idx] = 1
+
+    # normalize node indexes so that (0, 0) is at center
+    for node_ctr, node in enumerate(nodes):
+        nodes[node_ctr] = (node[0] - d + 1, node[1] - 2*d + 2)
 
     return w, nodes
