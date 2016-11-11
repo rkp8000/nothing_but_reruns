@@ -133,3 +133,45 @@ def test_wta_network_correctly_prevents_nodes_from_being_active_if_theyre_too_cl
     rs, xcs = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives)
 
     for r in rs[1:]: assert r.sum() == 1
+
+
+def test_wta_network_driven_by_single_node_yields_transitions_among_adjacent_nodes():
+
+    from connectivity import hexagonal_lattice
+    from network import LocalWtaWithAthAndStdp
+
+    # make weight matrix
+    w, nodes = hexagonal_lattice(6)
+
+    # set up drives
+    drives = np.zeros((12, len(nodes)))
+    drives[1, nodes.index((0, 0))] = 1
+
+    # make network
+    ntwk = LocalWtaWithAthAndStdp(
+        th=0.5, w=w, g_x=0, t_x=0, rp=2,
+        stdp_params=None, wta_dist=2)
+
+    r_0 = np.zeros((len(nodes),))
+    xc_0 = np.zeros((len(nodes),))
+
+    rs, xcs = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives)
+
+    assert np.all(rs[0] == 0)
+    for r in rs[1:]:
+        assert r.sum() == 1
+        assert (r == 1).sum() == 1
+
+    def nodes_are_adjacent(node_0, node_1):
+
+        if np.abs(node_0[0] - node_1[0]) == 0:
+            return np.abs(node_0[1] - node_1[1]) == 2
+
+        elif np.abs(node_0[0] - node_1[0]) == 1:
+            return np.abs(node_0[1] - node_1[1]) == 1
+
+        else:
+            return False
+
+    nodes = [nodes[r.argmax()] for r in rs[1:]]
+    assert np.all([nodes_are_adjacent(n_0, n_1) for n_0, n_1 in zip(nodes[:-1], nodes[1:])])
