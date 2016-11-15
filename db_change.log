@@ -1,8 +1,0 @@
-FUNCTION: "er_capacity" from module "data_collect.sequence_replay_capacity"
-PARAMETERS: {'P_CONNECTS': [0.1, 0.2, 0.3], 'SEQ_LENGTHS': [4], 'N_NETWORKSS': [30, 30, 30], 'N_NODESS': [100]}
-IS CORRECTION: False
-LATEST COMMIT ON "master": "5083541a1702ced19e3bedbd43075a4a17f8b9c7"
-LOG FILE: "logs/er_sequence_replay_capacity.log"
-FUNCTION START DATETIME: 2016-04-28 11:51:34.887461
-FUNCTION END DATETIME: 2016-04-28 18:36:51.218653
-
