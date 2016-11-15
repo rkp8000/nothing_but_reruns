@@ -1,4 +1,5 @@
 from __future__ import division, print_function
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -113,3 +114,14 @@ def firing_rate_heat_map(ax, dt, rs, vmin=0, vmax=1):
     ax.set_xticklabels(ax.get_xticks() * dt)
     ax.set_aspect('auto')
     ax.xaxis.tick_bottom()
+
+
+def get_n_colors(n, colormap='rainbow'):
+    """
+    Return a list of colors equally spaced over a color map.
+    :param n: number of colors
+    :param colormap: colormap to use
+    :return: list of colors that can be passed directly to color argument of plotting
+    """
+
+    return getattr(cm, colormap)(np.linspace(0, 1, n))

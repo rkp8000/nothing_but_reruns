@@ -2,9 +2,8 @@ from __future__ import division, print_function
 from copy import copy
 import numpy as np
 
-from network_models.discrete_time import SoftmaxWTAWithLingeringHyperexcitability
-from network_models.discrete_time import SoftmaxWTAWithLingeringHyperexcitabilityAndRefractoriness
-from network_models.discrete_time import SoftmaxWTAWithLingeringHyperexcitabilityAndSTDP
+from network_models.discrete_time import BasicWithAthAndTwoLevelStdp
+from network_models.discrete_time import LocalWtaWithAthAndStdp
 
 from network_models.continuous_time import RateBasedModel
 from network_models.continuous_time import LIFExponentialSynapsesModel

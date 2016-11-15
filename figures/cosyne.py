@@ -8,7 +8,7 @@ import os
 from scipy import stats
 
 from connectivity import hexagonal_lattice
-from network import BasicWithLingeringHyperexcitability
+from network import BasicWithAthAndTwoLevelStdp
 from network import LIFExponentialSynapsesModel
 from plot import get_n_colors, set_fontsize
 
@@ -29,7 +29,7 @@ def toy_network_simplified(TH, G_W, G_X, T_X, RP):
         [0, 0, 0, 0, 0, 1, 0],
     ], dtype=float)
 
-    ntwk = BasicWithLingeringHyperexcitability(TH, w, G_X, T_X, RP)
+    ntwk = BasicWithAthAndTwoLevelStdp(TH, w, G_X, T_X, RP, stdp_params=None)
 
     # make stimulus
     drives = np.zeros((4 * T_X, 7), dtype=float)
@@ -57,7 +57,7 @@ def toy_network_simplified(TH, G_W, G_X, T_X, RP):
     # run network
     r_0 = np.zeros((7,))
     xc_0 = np.zeros((7,))
-    rs, _ = ntwk.run(r_0, xc_0, 5*drives, noise_level=0)
+    rs, _ = ntwk.run(r_0, xc_0, 5*drives)
 
     # set up figures
     fig, axs = plt.subplots(2, 1, figsize=(3, 4), tight_layout=True, sharex=True, sharey=True)
@@ -361,8 +361,8 @@ def replay_statistics(
                     w *= G_W
 
                     # make network
-                    ntwk = BasicWithLingeringHyperexcitability(
-                        th=TH, w=w, g_x=G_X, t_x=2 * l, rp=RP
+                    ntwk = BasicWithAthAndTwoLevelStdp(
+                        th=TH, w=w, g_x=G_X, t_x=2 * l, rp=RP, stdp_params=None
                     )
 
                     correct_ctr = 0
@@ -380,7 +380,7 @@ def replay_statistics(
                         r_0 = np.zeros((N,))
                         xc_0 = np.zeros((N,))
 
-                        rs, _ = ntwk.run(r_0, xc_0, 5*drives, noise_level=0)
+                        rs, _ = ntwk.run(r_0, xc_0, 5*drives)
 
                         if np.all(rs[l+2:2*l+2, :] == drives[1:l+1, :]): correct_ctr += 1
 
@@ -449,7 +449,7 @@ def reverse_replay_simplified(TH, G_W, G_X, T_X, RP):
 
     n_nodes = len(nodes)
 
-    ntwk = BasicWithLingeringHyperexcitability(TH, w, G_X, T_X, RP)
+    ntwk = BasicWithAthAndTwoLevelStdp(TH, w, G_X, T_X, RP, stdp_params=None)
 
     # build stimulus
     drives = np.zeros((6 * T_X, n_nodes))
@@ -487,7 +487,7 @@ def reverse_replay_simplified(TH, G_W, G_X, T_X, RP):
     # run network
     r_0 = np.zeros((n_nodes,))
     xc_0 = np.zeros((n_nodes,))
-    rs, _ = ntwk.run(r_0, xc_0, 5*drives, 0)
+    rs, _ = ntwk.run(r_0, xc_0, 5*drives)
 
     fig, axs = plt.subplots(2, 1, figsize=(4.5, 4), tight_layout=True, sharex=True, sharey=True)
 

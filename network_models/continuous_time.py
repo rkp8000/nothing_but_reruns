@@ -88,7 +88,6 @@ class LIFExponentialSynapsesModel(object):
         for syn in gs.keys():
 
             g, tau, w, drive = gs[syn], taus[syn], ws[syn], drives[syn]
-
             dg = (dt / tau) * (-g + (w.dot(spikes) + drive) * tau / dt)
 
             gs[syn] += dg
@@ -96,14 +95,13 @@ class LIFExponentialSynapsesModel(object):
         return gs
 
     @staticmethod
-    def update_voltages(vs, tau_m, gs, v_revs, v_rest, dt):
+    def update_voltages(vs, taus_m, gs, v_revs, v_rests, dt):
         """
         Update voltages according to exponential ODE.
         """
 
         inputs = np.array([g * (v_revs[syn] - vs) for syn, g in gs.items()])
-
-        dv = (dt / tau_m) * (v_rest - vs + inputs.sum(0))
+        dv = (dt / taus_m) * (v_rests - vs + inputs.sum(0))
 
         return vs + dv
 
@@ -115,15 +113,12 @@ class LIFExponentialSynapsesModel(object):
         for variable in variables:
 
             if variable == 'spikes':
-
                 measurements[variable][t_ctr, :] = spikes
 
             elif variable == 'voltages':
-
                 measurements[variable][t_ctr, :] = voltages
 
             elif variable == 'refrac_ctrs':
-
                 measurements[variable][t_ctr, :] = refractory_counters
 
             elif 'conductances' in variable:
@@ -134,33 +129,25 @@ class LIFExponentialSynapsesModel(object):
         return measurements
 
     def __init__(
-            self, v_rest, tau_m, taus_syn, v_revs_syn,
-            v_th, v_reset, refrac_per, ws):
+            self, v_rests, taus_m, taus_syn, v_revs_syn,
+            v_ths, v_resets, refrac_pers, ws):
 
-        self.v_rest = v_rest
-        self.tau_m = tau_m
+        self.v_rests = v_rests
+        self.taus_m = taus_m
         self.taus_syn = taus_syn
         self.v_revs_syn = v_revs_syn
 
-        self.v_th = v_th
-        self.v_reset = v_reset
+        self.v_ths = v_ths
+        self.v_resets = v_resets
 
         self.ws = ws
 
         # extract some basic metadata
-
         self.n_cells = len(self.ws.values()[0])
         self.syns = self.taus_syn.keys()
 
         # allow refractory period to be specified for individual cells or not
-
-        if isinstance(refrac_per, float) or isinstance(refrac_per, int):
-
-            refrac_per *= np.ones((self.n_cells,))
-
-        assert len(refrac_per) == self.n_cells
-
-        self.refrac_per = np.array(refrac_per)
+        self.refrac_pers = np.array(refrac_pers)
 
     def run(self, initial_conditions, drives, dt, record=('spikes')):
         """
@@ -177,11 +164,10 @@ class LIFExponentialSynapsesModel(object):
         n_steps = np.max([drive.shape[0] for drive in drives.values()])
 
         # set initial conditions
-
         vs = initial_conditions['voltages']
         gs = {syn: initial_conditions['conductances'][syn] for syn in self.syns}
         rp_ctrs = initial_conditions['refrac_ctrs'] // dt
-        spikes = (vs > self.v_th).astype(float)
+        spikes = (vs > self.v_ths).astype(float)
 
         # allocate space for variables to be measured
 
@@ -190,7 +176,6 @@ class LIFExponentialSynapsesModel(object):
         for variable in record:
 
             if variable != 'conductances':
-
                 measurements[variable] = np.zeros((n_steps + 1, self.n_cells))
 
             else:
@@ -210,30 +195,24 @@ class LIFExponentialSynapsesModel(object):
         for t_ctr in range(n_steps):
 
             # decrement nonzero refractory periods
-
             rp_ctrs[rp_ctrs > 0] -= 1
 
             # get drives for this time step
-
             drive = {syn: drives[syn][t_ctr] for syn in self.syns}
 
             # calculate conductances for all cells
-
             gs = self.update_conductances(gs, self.taus_syn, self.ws, spikes, drive, dt)
 
             # calculate voltage change for all cells
-
-            vs = self.update_voltages(vs, self.tau_m, gs, self.v_revs_syn, self.v_rest, dt)
+            vs = self.update_voltages(vs, self.taus_m, gs, self.v_revs_syn, self.v_rests, dt)
 
             # set voltage of refractory neurons to reset potential
-
-            vs[rp_ctrs > 0] = self.v_reset
+            vs[rp_ctrs > 0] = self.v_resets[rp_ctrs > 0]
 
             # detect spikes, reset voltages, and set refractory periods
-
-            spikes = vs > self.v_th
-            vs[spikes] = self.v_reset
-            rp_ctrs[spikes] = self.refrac_per[spikes] // dt
+            spikes = vs > self.v_ths
+            vs[spikes] = self.v_resets[spikes]
+            rp_ctrs[spikes] = self.refrac_pers[spikes] // dt
             spikes = spikes.astype(float)
 
             # record desired variables
