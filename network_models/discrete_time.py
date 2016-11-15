@@ -187,8 +187,11 @@ class LocalWtaWithAthAndStdp(BasicWithAthAndTwoLevelStdp):
                 # store sum of neighbors' inputs
                 input_sums[ctr] = v[neighbors].sum()
 
-            probs = np.exp(input_sums * self.wta_factor)
-            probs /= probs.sum()
+            # calculate probabilities in terms of neighbors' sums
+            temp = np.tile(self.wta_factor * input_sums, (len(input_sums), 1))
+            probs = 1/np.sum(np.exp(temp.T - temp), axis=0)
+            assert round(probs.sum() - 1, 5) == 0
+            probs /= probs.sum()  # correct for possible minor numerical errors
             to_inactivate = np.random.choice(active, p=probs)
 
             active.pop(active.index(to_inactivate))
