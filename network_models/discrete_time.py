@@ -137,11 +137,12 @@ class BasicWithAthAndTwoLevelStdp(object):
 
 class LocalWtaWithAthAndStdp(BasicWithAthAndTwoLevelStdp):
 
-    def __init__(self, th, w, g_x, t_x, rp, stdp_params, wta_dist):
+    def __init__(self, th, w, g_x, t_x, rp, stdp_params, wta_dist, wta_factor):
 
         super(self.__class__, self).__init__(th, w, g_x, t_x, rp, stdp_params)
 
         self.wta_dist = wta_dist
+        self.wta_factor = wta_factor
         self.node_distances = np.zeros(w.shape)
 
         # use networkx to get shortest path length dict
@@ -186,7 +187,8 @@ class LocalWtaWithAthAndStdp(BasicWithAthAndTwoLevelStdp):
                 # store sum of neighbors' inputs
                 input_sums[ctr] = v[neighbors].sum()
 
-            probs = input_sums / input_sums.sum()
+            probs = np.exp(input_sums * self.wta_factor)
+            probs /= probs.sum()
             to_inactivate = np.random.choice(active, p=probs)
 
             active.pop(active.index(to_inactivate))
