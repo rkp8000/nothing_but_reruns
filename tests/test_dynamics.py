@@ -175,3 +175,58 @@ def test_wta_network_driven_by_single_node_yields_transitions_among_adjacent_nod
 
     nodes = [nodes[r.argmax()] for r in rs[1:]]
     assert np.all([nodes_are_adjacent(n_0, n_1) for n_0, n_1 in zip(nodes[:-1], nodes[1:])])
+
+
+def test_wta_network_wta_rule_is_input_dependent():
+
+    from connectivity import hexagonal_lattice
+    from network import LocalWtaWithAthAndStdp
+
+    np.random.seed(0)
+
+    # make weight matrix
+    w, nodes = hexagonal_lattice(6)
+
+    # set up drives
+    drives = np.zeros((12, len(nodes)))
+    drives[1, nodes.index((0, 0))] = 2
+    drives[1, nodes.index((0, 2))] = 100
+    drives[3, nodes.index((1, 1))] = 2
+    drives[3, nodes.index((1, -1))] = 100
+    drives[5, nodes.index((-2, -2))] = 2
+    drives[5, nodes.index((-3, -1))] = 100
+    drives[7, nodes.index((0, -4))] = 2
+    drives[7, nodes.index((1, -5))] = 2
+    drives[7, nodes.index((1, -3))] = 100
+    drives[9, nodes.index((2, 4))] = 2
+    drives[9, nodes.index((2, 0))] = 2
+    drives[9, nodes.index((2, 2))] = 100
+    drives[11, nodes.index((3, -3))] = 2
+    drives[11, nodes.index((3, -5))] = 2
+    drives[11, nodes.index((4, -4))] = 100
+
+    # make network
+    ntwk = LocalWtaWithAthAndStdp(
+        th=1.5, w=w, g_x=0, t_x=0, rp=2,
+        stdp_params=None, wta_dist=2)
+
+    # run network
+    r_0 = np.zeros((len(nodes),))
+    xc_0 = np.zeros((len(nodes),))
+
+    rs, xcs = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives)
+
+    # ensure no activations on first time step
+    assert np.all(rs[0] == 0)
+    # ensure all other activations correspond to most strongly driven nodes
+    times, actives = rs.nonzero()
+    assert np.all(times == np.array([1, 3, 5, 7, 9, 11]))
+    assert np.all(actives == np.array([
+        nodes.index((0, 2)),
+        nodes.index((1, -1)),
+        nodes.index((-3, -1)),
+        nodes.index((1, -3)),
+        nodes.index((2, 2)),
+        nodes.index((4, -4)),
+    ]))
+
