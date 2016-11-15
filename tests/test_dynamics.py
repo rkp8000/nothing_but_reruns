@@ -81,7 +81,8 @@ def test_wta_network_correctly_calculates_node_distance_matrix_in_example_networ
     w = (w + w.T > 0).astype(int)
 
     dists = LocalWtaWithAthAndStdp(
-        th=1, w=w, g_x=1, t_x=1, rp=2, stdp_params=None, wta_dist=2).node_distances
+        th=1, w=w, g_x=1, t_x=1, rp=2,
+        stdp_params=None, wta_dist=2, wta_factor=0).node_distances
 
     # make sure networkx shortest path length function matches up with distance matrix
     for node_0, spls in nx.shortest_path_length(nx.Graph(w)).items():
@@ -105,7 +106,7 @@ def test_wta_network_correctly_prevents_nodes_from_being_active_if_theyre_too_cl
 
     # make network that should be always spontaneously active
     ntwk = LocalWtaWithAthAndStdp(
-        th=-1, w=w_hex, g_x=0, t_x=0, rp=2, stdp_params=None, wta_dist=2)
+        th=-1, w=w_hex, g_x=0, t_x=0, rp=2, stdp_params=None, wta_dist=2, wta_factor=0)
 
     dists = ntwk.node_distances
 
@@ -125,7 +126,7 @@ def test_wta_network_correctly_prevents_nodes_from_being_active_if_theyre_too_cl
 
     # test for a network that is not spontaneously active
     ntwk = LocalWtaWithAthAndStdp(
-        th=.5, w=w_hex, g_x=0, t_x=0, rp=2, stdp_params=None, wta_dist=2)
+        th=.5, w=w_hex, g_x=0, t_x=0, rp=2, stdp_params=None, wta_dist=2, wta_factor=0)
 
     # run network for several time steps
     drives = np.zeros((20, len(nodes)))
@@ -150,7 +151,7 @@ def test_wta_network_driven_by_single_node_yields_transitions_among_adjacent_nod
     # make network
     ntwk = LocalWtaWithAthAndStdp(
         th=0.5, w=w, g_x=0, t_x=0, rp=2,
-        stdp_params=None, wta_dist=2)
+        stdp_params=None, wta_dist=2, wta_factor=0)
 
     r_0 = np.zeros((len(nodes),))
     xc_0 = np.zeros((len(nodes),))
@@ -185,7 +186,7 @@ def test_wta_network_wta_rule_is_input_dependent():
     np.random.seed(0)
 
     # make weight matrix
-    w, nodes = hexagonal_lattice(6)
+    w, nodes = hexagonal_lattice(5)
 
     # set up drives
     drives = np.zeros((12, len(nodes)))
@@ -208,7 +209,7 @@ def test_wta_network_wta_rule_is_input_dependent():
     # make network
     ntwk = LocalWtaWithAthAndStdp(
         th=1.5, w=w, g_x=0, t_x=0, rp=2,
-        stdp_params=None, wta_dist=2)
+        stdp_params=None, wta_dist=2, wta_factor=0.1)
 
     # run network
     r_0 = np.zeros((len(nodes),))
@@ -230,3 +231,23 @@ def test_wta_network_wta_rule_is_input_dependent():
         nodes.index((4, -4)),
     ]))
 
+    # make new network with 0 as wta_factor and make sure that
+    # there is variability in which nodes activate
+    ntwk = LocalWtaWithAthAndStdp(
+        th=1.5, w=w, g_x=0, t_x=0, rp=2,
+        stdp_params=None, wta_dist=2, wta_factor=0)
+
+    same_as_nonzero_wta_factor = []
+
+    for _ in range(10):
+
+        rs, xcs = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives)
+        for t, r in enumerate(rs):
+
+            if not t%2: assert np.all(r == 0)
+            else: assert np.sum(r) == 1 and np.sum(r == 1) == 1
+
+        same_as_nonzero_wta_factor.append(
+            np.sum(rs.nonzero()[1] == actives))
+
+    assert 0 < np.mean(same_as_nonzero_wta_factor) < 6
