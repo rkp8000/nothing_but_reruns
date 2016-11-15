@@ -70,7 +70,7 @@ class BasicWithAthAndTwoLevelStdp(object):
 
         return w
 
-    def adjust_for_local_wta(self, r): return r
+    def adjust_for_local_wta(self, v, r): return r
 
     def run(self, r_0, xc_0, drives, measure_w=None):
         """
@@ -101,14 +101,18 @@ class BasicWithAthAndTwoLevelStdp(object):
 
                 # calculate inputs and compare them to threshold
                 x = (xc > 0).astype(float)
-                r = (w.dot(r) + drive + self.g_x*x > self.th).astype(int)
+                v = w.dot(r) + drive + self.g_x*x
+                r = (v > self.th).astype(int)
                 # remove active nodes in refractory period
                 r[rpc > 0] = 0
 
                 w = self.update_weights(w, r_prev, r)
 
+            else:
+                v = np.ones(r.shape)
+
             # remove (nonexistent) WTA violations
-            r = self.adjust_for_local_wta(r)
+            r = self.adjust_for_local_wta(v, r)
 
             # decrement hyperexcitabilities and refractory counter
             xc[xc > 0] -= 1
@@ -151,38 +155,46 @@ class LocalWtaWithAthAndStdp(BasicWithAthAndTwoLevelStdp):
                 self.node_distances[node_0, node_1] = spl
                 self.node_distances[node_1, node_0] = spl
 
-    def adjust_for_local_wta(self, r):
+    def adjust_for_local_wta(self, v, r):
         """
         Ensure that no two nodes are active if they are <= self.wta_distance from each other
+        :param v: node inputs
         :param r: candidate activation vector (prior to WTA correction)
         :return: corrected activation vector
         """
 
-        active_nodes = list(r.nonzero()[0])
+        active = list(r.nonzero()[0])
 
         # get all pairs of nodes that are too close together
         invalid_pairs = []
-        for pair in combinations(active_nodes, 2):
+        for pair in combinations(active, 2):
 
             if 0 < self.node_distances[pair[0], pair[1]] <= self.wta_dist:
                 invalid_pairs.append(pair)
 
-        # turn off nodes with probability proportional to how many invalid
-        # pairs they participate in until there are no more invalid pairs
+        # turn off nodes with probability proportional to the sum of the inputs
+        # of their potentially active neighbors until there are no more invalid pairs
         while invalid_pairs:
 
-            flat = list(np.array(invalid_pairs).flat)
-            node_counts = np.array([flat.count(node) for node in active_nodes])
-            probs = node_counts / node_counts.sum()
+            # loop through list of all unique nodes
+            input_sums = np.nan * np.zeros((len(active),))
 
-            to_inactivate = np.random.choice(active_nodes, p=probs)
+            for ctr, node in enumerate(active):
 
-            active_nodes.pop(active_nodes.index(to_inactivate))
+                # find node's neighbors
+                neighbors = [c for c in active if (node, c) in invalid_pairs or (c, node) in invalid_pairs]
+                # store sum of neighbors' inputs
+                input_sums[ctr] = v[neighbors].sum()
+
+            probs = input_sums / input_sums.sum()
+            to_inactivate = np.random.choice(active, p=probs)
+
+            active.pop(active.index(to_inactivate))
             invalid_pairs = [pair for pair in invalid_pairs if to_inactivate not in pair]
 
-        if r.sum(): assert len(active_nodes) > 0
+        if r.sum(): assert len(active) > 0
 
         r_adjusted = np.zeros(r.shape)
-        r_adjusted[active_nodes] = 1
+        r_adjusted[active] = 1
 
         return r_adjusted
