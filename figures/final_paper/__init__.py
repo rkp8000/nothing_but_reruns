@@ -4,7 +4,6 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
-import threading
 
 import connectivity
 from db import _models
@@ -17,7 +16,7 @@ def record_extension_by_spontaneous_replay(
         SEED, GROUP_NAME, LOG_FILE,
         NETWORK_SIZE, V_TH, RP, T_X,
         NODE_SEQ, DRIVE_AMP, PROBE_TIME,
-        ALPHA, G_X_STEP, G_W_STEP, NOISE_STEP,
+        ALPHA, G_XS, G_WS, NOISE_STDS,
         N_TRIALS, LOW_PROB_THRESHOLD, LOW_PROB_MIN_TRIALS,):
     """
     Perform a parameter sweep over varying influences of the hyperexcitability
@@ -26,13 +25,11 @@ def record_extension_by_spontaneous_replay(
 
     # preliminaries
     np.random.seed(SEED)
-    s = db.connect_and_make_session('neural_pattern_replay')
+    session = db.connect_and_make_session('nothing_but_reruns')
     m = _models.SpontaneousReplayExtensionResult
-    db.delete_record_group(s, m.group, GROUP_NAME)
+    db.delete_record_group(session, m.group, GROUP_NAME)
 
     db.prepare_logging(LOG_FILE)
-
-    g_xs = np.arange(0, V_TH, G_X_STEP)[1:]
 
     # make weight matrix
     w_base, nodes = connectivity.hexagonal_lattice(NETWORK_SIZE)
@@ -41,36 +38,38 @@ def record_extension_by_spontaneous_replay(
     l = len(NODE_SEQ)
     drives_base = np.zeros((2*l + PROBE_TIME, len(nodes)))
 
-    for ctr, node in NODE_SEQ: drives_base[ctr + 1, nodes.index(node)] = DRIVE_AMP
+    for ctr, node in enumerate(NODE_SEQ):
+        drives_base[ctr + 1, nodes.index(node)] = DRIVE_AMP
+
     drives_base[PROBE_TIME + 1, nodes.index(NODE_SEQ[0])] = DRIVE_AMP
 
-    node_seq_logical = drives_base[1:1+l, :]
+    node_seq_logical = (drives_base[1:1+l] > 0).astype(int)
 
+    print(*node_seq_logical.nonzero())
     r_0 = np.zeros((len(nodes),))
     xc_0 = np.zeros((len(nodes),))
 
-    for g_x in g_xs:
+    for g_x in G_XS:
 
         logging.info('Starting sweep set with g_x = {0:.3f}.'.format(g_x))
 
         # the max noise we'll consider is one in which there is a
-        # 20% chance that a hyperexcitable node activates spontaneously
-        noise_std_max = (1/stats.norm.ppf(0.8)) * (v_th - g_x)
-        noise_stds = np.arange(0, noise_std_max, NOISE_STEP)
+        # 30% chance that a hyperexcitable node activates spontaneously
+        noise_std_max = (1/stats.norm.ppf(0.7)) * (V_TH - g_x)
+        noise_stds = [ns for ns in NOISE_STDS if 0 <= ns < noise_std_max]
 
         # make sure we actually have a nonzero noise to test
-        if len(noise_stds) > 1: noise_stds = noise_stds[1:]
-        else: continue
+        if not noise_stds: continue
 
         # loop over all possible values of g_w
-        g_ws = np.arange(V_TH-g_x, V_TH, G_W_STEP)
+        g_ws = [g_w for g_w in G_WS if V_TH-g_x <= g_w < V_TH]
         for g_w in g_ws:
 
             logging.info('Starting sweep with g_x = {0:.3f}, g_w = {1:.3f}.'.format(g_x, g_w))
             logging.info('Sweeping over {} noise levels...'.format(len(noise_stds)))
 
             ntwk = network.LocalWtaWithAthAndStdp(
-                th=v_th, w=g_w*w_base, g_x=g_x, t_x=t_x, rp=rp,
+                th=V_TH, w=g_w*w_base, g_x=g_x, t_x=T_X, rp=RP,
                 stdp_params=None, wta_dist=2, wta_factor=ALPHA)
 
             # set up our data structure
@@ -94,25 +93,32 @@ def record_extension_by_spontaneous_replay(
 
             for noise_std in noise_stds:
 
+                broken = False
+
                 replay_successes = []
                 for tr_ctr in range(N_TRIALS):
 
                     # make noisy drives and run network
                     drives = drives_base + noise_std * np.random.randn(*drives_base.shape)
-                    rs = ntwk.run(r_0, xc_0, drives)[0]
+                    rs = ntwk.run(r_0, xc_0, drives)[0].astype(int)
 
                     # compare initial and probed replay sequence to true sequence
-                    initial_match = np.all(rs.T[1:1+l] == node_seq_logical)
-                    replay_match = np.all(rs.T[PROBE_TIME+1:PROBE_TIME+1+l] == node_seq_logical)
+                    rs_initial = rs[1:1+l]
+                    rs_replay = rs[PROBE_TIME+1:PROBE_TIME+1+l]
+                    initial_match = np.all(rs_initial == node_seq_logical)
+                    replay_match = np.all(rs_replay == node_seq_logical)
 
                     replay_successes.append(initial_match and replay_match)
 
                     # skip remaining trials if estimated probability is sufficiently small
                     if tr_ctr + 1 >= LOW_PROB_MIN_TRIALS:
                         if np.mean(replay_successes) < LOW_PROB_THRESHOLD:
+                            broken = True
                             break
 
-                sper.probed_replay_probs.append(np.mean(replay_successes))
+                replay_prob = np.mean(replay_successes) if not broken else -1
+                sper.probed_replay_probs.append(replay_prob)
+
                 sper.n_trials_completed.append(tr_ctr + 1)
 
             session.add(sper)
@@ -149,7 +155,7 @@ def extension_by_spontaneous_replay(
     # make network
     ntwk = network.LocalWtaWithAthAndStdp(
         th=TH, w=W*w_base, g_x=G_X, t_x=T_X, rp=RP,
-        stdp_params=None, wta_dist=2)
+        stdp_params=None, wta_dist=2, wta_factor=0)
 
     # make base drives for examples (which we'll add noise to)
     n_steps = REPLAY_TRIGGER + len(NODE_SEQ) + 2
@@ -189,7 +195,7 @@ def extension_by_spontaneous_replay(
         label = 'w = {0:.1f}, g_x = {1:.1f}'.format(w, g_x)
         ntwk = network.LocalWtaWithAthAndStdp(
             th=TH, w=w*w_base, g_x=g_x, t_x=T_X, rp=RP,
-            stdp_params=None, wta_dist=2)
+            stdp_params=None, wta_dist=2, wta_factor=0)
 
         np.random.seed(SEED_STATS)
         replay_probs = []
