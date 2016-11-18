@@ -21,10 +21,10 @@ class SpontaneousReplayExtensionResult(Base):
     t_x = Column(Float)
     sequence = Column(ARRAY(Integer))
     drive_amplitude = Column(Float)
-    replay_probe_time = Column(Integer)
+    probe_time = Column(Integer)
     n_trials_attempted = Column(Integer)
-    zero_probability_threshold = Column(Float)
-    zero_probability_certainty = Column(Float)
+    low_probability_threshold = Column(Float)
+    low_probability_min_trials = Column(Integer)
 
     alpha = Column(Float)
     g_x = Column(Float)
