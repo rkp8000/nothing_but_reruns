@@ -142,7 +142,7 @@ def extension_by_spontaneous_replay(
     m = _models.SpontaneousReplayExtensionResult
 
     gs = gridspec.GridSpec(1 + len(NOISES_EXAMPLE), len(G_XS))
-    fig_size = (15, 3 * (1 + len(NOISES_EXAMPLE)))
+    fig_size = (15, 4 * (1 + len(NOISES_EXAMPLE)))
 
     fig = plt.figure(figsize=fig_size, tight_layout=True)
     axs = []
@@ -164,25 +164,35 @@ def extension_by_spontaneous_replay(
 
         axs.append(fig.add_subplot(gs[0, ctr]))
 
-        results = []
+        results = np.array([srer.probed_replay_probs for srer in srers]).T
 
-        for srer in srers:
-            xs = srer.g_w * np.ones((len(srer.noise_stds),))
-            ys = np.array(srer.noise_stds)
-            zs = np.array(srer.probed_replay_probs)
-            mask = zs >= 0
+        g_ws = [srer.g_w for srer in srers]
+        noise_stds = srers[0].noise_stds
+        d_gw = g_ws[1] - g_ws[0]
+        d_noise_std = noise_stds[1] - noise_stds[0]
+        extent = [
+            g_ws[0] - d_gw, g_ws[-1] + d_gw,
+            noise_stds[0] - d_noise_std, noise_stds[-1] + d_noise_std
+        ]
 
-            axs[-1].scatter(xs[mask], ys[mask], c=zs[mask], vmin=0, vmax=max_prob, lw=0)
-            axs[-1].scatter(xs[~mask], ys[~mask], c='gray', marker='x')
-            axs[-1].set_title('g_x = {0:.2f}'.format(g_x))
+        axs[-1].imshow(
+            results, interpolation='nearest',
+            extent=extent, origin='lower', vmin=0, vmax=max_prob, zorder=0)
+
+        grays = results.copy()
+        grays[results >=0] = np.nan
+        grays[results < -0] = 0
+        axs[-1].imshow(
+            grays, interpolation='nearest',
+            extent=extent, origin='lower', vmin=-1, vmax=1, cmap='Greys', zorder=1)
+
+        axs[-1].set_title('g_x = {0:.2f}'.format(g_x))
 
     for ax in axs:
         ax.set_xlim(X_LIM)
         ax.set_ylim(Y_LIM)
+        ax.set_aspect('auto')
         ax.set_xlabel('g_w')
-
-        ax.set_xticks([ax.get_xticks()[0], ax.get_xticks()[-1]])
-
     axs[0].set_ylabel('noise std')
 
     # get parameters to use for example from last database entry
