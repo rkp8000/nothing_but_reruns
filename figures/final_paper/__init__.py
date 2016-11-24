@@ -171,8 +171,8 @@ def extension_by_spontaneous_replay(
         d_gw = g_ws[1] - g_ws[0]
         d_noise_std = noise_stds[1] - noise_stds[0]
         extent = [
-            g_ws[0] - d_gw, g_ws[-1] + d_gw,
-            noise_stds[0] - d_noise_std, noise_stds[-1] + d_noise_std
+            g_ws[0] - d_gw/2, g_ws[-1] + d_gw/2,
+            noise_stds[0] - d_noise_std/2, noise_stds[-1] + d_noise_std/2
         ]
 
         axs[-1].imshow(
