@@ -29,7 +29,8 @@ def test_zip_cproduct_works_on_examples():
         ('x3', 'y3', 'z01', 'z11'),
     ]
 
-    assert zip_cproduct(z=z, c=c, order=['x', 'y', 'z0', 'z1'], **kwargs) == correct
+    assert zip_cproduct(
+        z=z, c=c, order=['x', 'y', 'z0', 'z1'], kwargs=kwargs) == correct
 
     # reordered example
 
@@ -48,4 +49,5 @@ def test_zip_cproduct_works_on_examples():
         ('y3', 'z11', 'x3', 'z01'),
     ]
 
-    assert zip_cproduct(z=z, c=c, order=['y', 'z1', 'x', 'z0'], **kwargs) == correct
+    assert zip_cproduct(
+        z=z, c=c, order=['y', 'z1', 'x', 'z0'], kwargs=kwargs) == correct
