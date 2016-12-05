@@ -20,7 +20,7 @@ def test_stdp_mediated_weight_changes_have_correct_sign_in_discrete_time_network
     b_mask = np.triu(w > 0)
 
     # set stdp params
-    stdp_params = {'w_1': 1, 'w_2': 3, 'alpha_1': .1, 'alpha_2': .15}
+    stdp_params = {'w_0': 1, 'w_1': 3, 'beta_0': .1, 'beta_1': .15}
 
     # set up networks and drive paradigms for each test
     ntwks = [

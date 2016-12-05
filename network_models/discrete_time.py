@@ -30,10 +30,10 @@ class BasicWithAthAndTwoLevelStdp(object):
         :param t_x: hyperexcitability timescale
         :param rp: refractory period
         :param stdp_params: dictionary of stdp params:
-            :param 'w_1': weak synaptic strength
-            :param 'w_2': strong synaptic strength
-            :param 'alpha_1': learning rate towards w_1
-            :param 'alpha_2': learning rate towards w_2
+            :param 'w_0': weak synaptic strength
+            :param 'w_1': strong synaptic strength
+            :param 'beta_0': learning rate towards w_0
+            :param 'beta_1': learning rate towards w_1
         """
 
         self.th = th
@@ -45,10 +45,10 @@ class BasicWithAthAndTwoLevelStdp(object):
 
         self.n_nodes = w.shape[0]
 
+        self.w_0 = 0 if stdp_params is None else stdp_params['w_0']
         self.w_1 = 0 if stdp_params is None else stdp_params['w_1']
-        self.w_2 = 0 if stdp_params is None else stdp_params['w_2']
-        self.alpha_1 = 0 if stdp_params is None else stdp_params['alpha_1']
-        self.alpha_2 = 0 if stdp_params is None else stdp_params['alpha_2']
+        self.beta_0 = 0 if stdp_params is None else stdp_params['beta_0']
+        self.beta_1 = 0 if stdp_params is None else stdp_params['beta_1']
 
     def update_weights(self, w, r_prev, r):
         """
@@ -60,13 +60,13 @@ class BasicWithAthAndTwoLevelStdp(object):
         :return: updated weight matrix
         """
 
-        if self.alpha_1 == self.alpha_2 == 0: return w
+        if self.beta_0 == self.beta_1 == 0: return w
 
         # loop through all sequential activations
         for prev, curr in cproduct(r_prev.nonzero()[0], r.nonzero()[0]):
 
-            if w[prev, curr]: w[prev, curr] += self.alpha_1*(self.w_1 - w[prev, curr])
-            if w[curr, prev]: w[curr, prev] += self.alpha_2*(self.w_2 - w[curr, prev])
+            if w[prev, curr]: w[prev, curr] += self.beta_0*(self.w_0 - w[prev, curr])
+            if w[curr, prev]: w[curr, prev] += self.beta_1*(self.w_1 - w[curr, prev])
 
         return w
 
@@ -158,7 +158,8 @@ class LocalWtaWithAthAndStdp(BasicWithAthAndTwoLevelStdp):
 
     def adjust_for_local_wta(self, v, r):
         """
-        Ensure that no two nodes are active if they are <= self.wta_distance from each other
+        Ensure that no two nodes are active if they are <= self.wta_distance from
+        each other
         :param v: node inputs
         :param r: candidate activation vector (prior to WTA correction)
         :return: corrected activation vector
@@ -183,7 +184,9 @@ class LocalWtaWithAthAndStdp(BasicWithAthAndTwoLevelStdp):
             for ctr, node in enumerate(active):
 
                 # find node's neighbors
-                neighbors = [c for c in active if (node, c) in invalid_pairs or (c, node) in invalid_pairs]
+                neighbors = [
+                    c for c in active
+                    if (node, c) in invalid_pairs or (c, node) in invalid_pairs]
                 # store sum of neighbors' inputs
                 input_sums[ctr] = v[neighbors].sum()
 
@@ -195,7 +198,8 @@ class LocalWtaWithAthAndStdp(BasicWithAthAndTwoLevelStdp):
             to_inactivate = np.random.choice(active, p=probs)
 
             active.pop(active.index(to_inactivate))
-            invalid_pairs = [pair for pair in invalid_pairs if to_inactivate not in pair]
+            invalid_pairs = [
+                pair for pair in invalid_pairs if to_inactivate not in pair]
 
         if r.sum(): assert len(active) > 0
 
