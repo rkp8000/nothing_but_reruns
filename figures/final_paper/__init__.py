@@ -1,7 +1,8 @@
 from __future__ import division, print_function
+from itertools import product as cproduct
 import logging
 import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt; plt.style.use('ggplot')
 import numpy as np
 from scipy import stats
 
@@ -10,6 +11,7 @@ from db import _models
 import db
 import network
 import plot
+from shortcuts import zip_cproduct
 
 
 def record_extension_by_spontaneous_replay(
@@ -64,7 +66,8 @@ def record_extension_by_spontaneous_replay(
         g_ws = [g_w for g_w in G_WS if V_TH-g_x <= g_w < V_TH]
         for g_w in g_ws:
 
-            logging.info('Starting sweep with g_x = {0:.3f}, g_w = {1:.3f}.'.format(g_x, g_w))
+            logging.info(
+                'Starting sweep with g_x = {0:.3f}, g_w = {1:.3f}.'.format(g_x, g_w))
             logging.info('Sweeping over {} noise levels...'.format(len(noise_stds)))
 
             ntwk = network.LocalWtaWithAthAndStdp(
@@ -98,7 +101,8 @@ def record_extension_by_spontaneous_replay(
                 for tr_ctr in range(N_TRIALS):
 
                     # make noisy drives and run network
-                    drives = drives_base + noise_std * np.random.randn(*drives_base.shape)
+                    drives = drives_base + noise_std * \
+                        np.random.randn(*drives_base.shape)
                     rs = ntwk.run(r_0, xc_0, drives)[0].astype(int)
 
                     # compare initial and probed replay sequence to true sequence
@@ -109,7 +113,7 @@ def record_extension_by_spontaneous_replay(
 
                     replay_successes.append(initial_match and replay_match)
 
-                    # skip remaining trials if estimated probability is sufficiently small
+                    # skip remaining trials if estimated probability is small
                     if tr_ctr + 1 >= LOW_PROB_MIN_TRIALS:
                         if np.mean(replay_successes) < LOW_PROB_THRESHOLD:
                             broken = True
@@ -132,7 +136,7 @@ def record_extension_by_spontaneous_replay(
 
 def extension_by_spontaneous_replay(
         SEEDS_EXAMPLE, NOISES_EXAMPLE,
-        W, G_X, GROUP_NAME, G_XS, X_LIM, Y_LIM):
+        G_W, G_X, GROUP_NAME, G_XS, X_LIM, Y_LIM):
     """
     Make plots that explore the dependence of extended replay on
     spontaneous noise level.
@@ -141,8 +145,8 @@ def extension_by_spontaneous_replay(
     session = db.connect_and_make_session('nothing_but_reruns')
     m = _models.SpontaneousReplayExtensionResult
 
-    gs = gridspec.GridSpec(1 + len(NOISES_EXAMPLE), len(G_XS))
-    fig_size = (15, 4 * (1 + len(NOISES_EXAMPLE)))
+    gs = gridspec.GridSpec(2 + len(NOISES_EXAMPLE), len(G_XS))
+    fig_size = (15, 3.6 * (2 + len(NOISES_EXAMPLE)))
 
     fig = plt.figure(figsize=fig_size, tight_layout=True)
     axs = []
@@ -154,15 +158,13 @@ def extension_by_spontaneous_replay(
         for srer in session.query(m).filter(m.group == GROUP_NAME).all()
     ])
 
-    print('Max replay prob = {}'.format(max_prob))
-
     for ctr, g_x in enumerate(G_XS):
 
         srers = session.query(m).filter(
             m.group == GROUP_NAME,
             m.g_x.between(0.999*g_x, 1.001*g_x)).order_by(m.g_w).all()
 
-        axs.append(fig.add_subplot(gs[0, ctr]))
+        axs.append(fig.add_subplot(gs[-1, ctr]))
 
         results = np.array([srer.probed_replay_probs for srer in srers]).T
 
@@ -186,7 +188,9 @@ def extension_by_spontaneous_replay(
             grays, interpolation='nearest',
             extent=extent, origin='lower', vmin=-1, vmax=1, cmap='Greys', zorder=1)
 
-        axs[-1].set_title('g_x = {0:.2f}'.format(g_x))
+        axs[-1].set_title(
+            'Replay prob. for\ng_x = {0:.2f}\n(max prob = {1:.3f})'.format(
+            g_x, results.max()))
 
     for ax in axs:
         ax.set_xlim(X_LIM)
@@ -212,14 +216,15 @@ def extension_by_spontaneous_replay(
     xc_0 = np.zeros((len(nodes),))
 
     # run examples
-    axs_example = [fig.add_subplot(gs[1, :])]
-    axs_example.extend([
-        fig.add_subplot(gs[2+ctr, :], sharex=axs_example[0], sharey=axs_example[0])
-        for ctr in range(len(SEEDS_EXAMPLE) - 1)])
+    ax_drive = fig.add_subplot(gs[0, :])
+    axs_example = [
+        fig.add_subplot(gs[1+ctr, :], sharex=ax_drive, sharey=ax_drive)
+        for ctr in range(len(NOISES_EXAMPLE))
+    ]
 
     # make network
     ntwk = network.LocalWtaWithAthAndStdp(
-        th=v_th, w=W*w_base, g_x=G_X, t_x=t_x, rp=rp,
+        th=v_th, w=G_W*w_base, g_x=G_X, t_x=t_x, rp=rp,
         stdp_params=None, wta_dist=2, wta_factor=alpha)
 
     # make base drives for examples (which we'll add noise to)
@@ -234,6 +239,18 @@ def extension_by_spontaneous_replay(
     # replay trigger
     drives_base[probe_time, nodes.index(node_seq[0])] = drive_amp
 
+    # show driving stimulus
+    d_times, d_nodes = drives_base.nonzero()
+
+    ax_drive.scatter(d_times, d_nodes, s=25, lw=0)
+
+    ax_drive.axvspan(0.5, len(node_seq) + 0.5, color='r', alpha=0.15)
+    ax_drive.axvspan(probe_time - 0.5, probe_time + 0.5, color='r', alpha=0.15)
+
+    ax_drive.set_xlabel('time step')
+    ax_drive.set_ylabel('node')
+    ax_drive.set_title('stimulus')
+
     # run network
     for seed, noise, ax in zip(SEEDS_EXAMPLE, NOISES_EXAMPLE, axs_example):
 
@@ -243,14 +260,179 @@ def extension_by_spontaneous_replay(
 
         r_times, r_nodes = rs.nonzero()
 
-        ax.scatter(r_times, r_nodes, s=15, lw=0)
+        ax.scatter(r_times, r_nodes, s=25, lw=0)
+
+        ax.axvspan(0.5, len(node_seq) + 0.5, color='r', alpha=0.15)
+        ax.axvspan(probe_time - 0.5, probe_time + 0.5, color='r', alpha=0.15)
+
         ax.set_xlim(-probe_time*0.05, probe_time*1.05)
         ax.set_ylabel('node')
-        ax.set_title('noise stdev = {0:.3}'.format(noise))
+        ax.set_title(
+            'g_x = {0:.3}, g_w = {1:.3}, noise std = {2:.3}'.format(G_X, G_W, noise))
 
-    axs_example[-1].set_xlabel('time step')
+        ax.set_xlabel('time step')
 
-    for ax in axs + axs_example: plot.set_fontsize(ax, 16)
+    for ax in axs + [ax_drive] + axs_example: plot.set_fontsize(ax, 16)
 
     session.close()
     return fig
+
+
+def record_replay_plus_stdp(
+        SEED, GROUP, LOG_FILE,
+        NETWORK_SIZE, V_TH, RP,
+        SEQS_STRONG, SEQ_NOVEL, DRIVE_AMP,
+        ALPHAS, BETA_0S, BETA_1S,
+        T_XS, G_XS, W_0S, W_1S, NOISE_STDS,
+        TRIGGER_INTERVALS, ZIP, CPRODUCT,
+        TRIGGER_SEQ, INTERRUPTION_SEQ, INTERRUPTION_TIME,
+        N_TRIALS, W_MEASUREMENT_TIME):
+    """
+    Record results of replay plus stdp.
+    """
+    # preliminaries
+    session = db.connect_and_make_session('nothing_but_reruns')
+    db.delete_record_group(session, _models.ReplayPlusStdpResult.group, GROUP)
+    db.prepare_logging(LOG_FILE)
+    np.random.seed(SEED)
+
+    # make base weight matrix
+    w_base, nodes = connectivity.hexagonal_lattice(NETWORK_SIZE)
+
+    # make mask for strong connections
+    mask_w_strong = np.zeros(w_base.shape, dtype=bool)
+    for seq in SEQS_STRONG:
+        for node_from, node_to in zip(seq[:-1], seq[1:]):
+            mask_w_strong[nodes.index(node_to), nodes.index(node_from)] = True
+            mask_w_strong[nodes.index(node_from), nodes.index(node_to)] = True
+
+    # make pre-noise drives
+    drives_base = np.zeros((1 + W_MEASUREMENT_TIME, len(nodes)))
+
+    # initial sequence
+    for ctr, node in enumerate(SEQ_NOVEL):
+        node_idx = nodes.index(node)
+        drives_base[ctr + 1, node_idx] = DRIVE_AMP
+
+    # interruption sequence
+    interruption_epoch = []
+    if INTERRUPTION_TIME:
+        for ctr, node in enumerate(INTERRUPTION_SEQ):
+            t = ctr + INTERRUPTION_TIME
+            node_idx = nodes.index(node)
+            drives_base[t, node_idx] = DRIVE_AMP
+            interruption_epoch.append(t)
+
+    r_0 = np.zeros((len(nodes),))
+    xc_0 = np.zeros((len(nodes),))
+
+    # measurement function
+    ws_to_measure = [
+        (nodes.index(node_to), nodes.index(node_from))
+        for node_from, node_to in zip(SEQ_NOVEL[:-1], SEQ_NOVEL[1:])
+    ] + [
+        (nodes.index(node_to), nodes.index(node_from))
+        for node_from, node_to in zip(SEQ_NOVEL[::-1][:-1], SEQ_NOVEL[::-1][1:])
+    ]
+
+    def measure_w(w):
+        return [w[w_to_measure] for w_to_measure in ws_to_measure]
+
+    # loop over desired param combinations
+    order = [
+        'ALPHAS', 'BETA_0S', 'BETA_1S', 'T_XS', 'G_XS', 'W_0S', 'W_1S',
+        'NOISE_STDS', 'TRIGGER_INTERVALS'
+    ]
+    parameters = zip_cproduct(ZIP, CPRODUCT, order=order, kwargs=locals())
+
+    logging.info(
+        'Beginning loop over {} parameter combinations.'.format(len(parameters)))
+
+    for alpha, beta_0, beta_1, t_x, g_x, w_0, w_1, noise_std, trigger_interval \
+            in parameters:
+
+        # make sure variables have been assigned correctly
+        assert alpha in ALPHAS and beta_0 in BETA_0S and beta_1 in BETA_1S
+        assert t_x in T_XS and g_x in G_XS and w_0 in W_0S and w_1 in W_1S
+        assert noise_std in NOISE_STDS and trigger_interval in TRIGGER_INTERVALS
+
+        logging.info('Running {} trials for parameters: {}'.format(
+            N_TRIALS, {
+                'alpha': alpha, 'beta_0': beta_0, 'beta_1': beta_1,
+                't_x': t_x, 'g_x': g_x, 'w_0': w_0, 'w_1': w_1,
+                'noise_std': noise_std, 'trigger_interval': trigger_interval
+            }))
+
+        # make weight matrix
+        w = w_0 * w_base
+        w[mask_w_strong] = w_1
+
+        # set stdp params
+        stdp_params = {
+            'w_0': w_0, 'w_1': w_1, 'beta_0': beta_0, 'beta_1': beta_1
+        }
+
+        # make network
+        ntwk = network.LocalWtaWithAthAndStdp(
+            th=V_TH, w=w, g_x=g_x, t_x=t_x, rp=RP,
+            stdp_params=stdp_params, wta_dist=2, wta_factor=alpha)
+
+        # add triggers to base drives
+        drives = drives_base.copy()
+
+        if trigger_interval:
+            trigger_times = np.arange(
+                1, 1 + W_MEASUREMENT_TIME, trigger_interval)[1:]
+
+            for ctr, trigger_time in enumerate(trigger_times):
+                if trigger_time in interruption_epoch: continue
+
+                node = TRIGGER_SEQ[ctr % len(TRIGGER_SEQ)]
+                node_idx = nodes.index(node)
+                drives[trigger_time, node_idx] = DRIVE_AMP
+
+        # create data structure
+        rpsr = _models.ReplayPlusStdpResult(
+            group=GROUP,
+            network_size=NETWORK_SIZE,
+            v_th=V_TH,
+            rp=RP,
+            sequences_strong=SEQS_STRONG,
+            sequence_novel=SEQ_NOVEL,
+            drive_amplitude=DRIVE_AMP,
+
+            alpha=alpha,
+            t_x=t_x,
+            g_x=g_x,
+            w_0=w_0,
+            w_1=w_1,
+            noise_std=noise_std,
+            beta_0=beta_0,
+            beta_1=beta_1,
+
+            trigger_interval=trigger_interval,
+            trigger_sequence=TRIGGER_SEQ,
+            interruption_time=INTERRUPTION_TIME,
+            interruption_sequence=INTERRUPTION_SEQ,
+
+            w_measurement_time=W_MEASUREMENT_TIME,
+            ws_measured=ws_to_measure,
+
+            n_trials_completed=0,
+            ws_measured_values=[])
+
+        # loop over trials
+        for _ in range(N_TRIALS):
+            # add noise
+            drives += noise_std * np.random.randn(*drives.shape)
+
+            # run network
+            rs, _, w_measurements = ntwk.run(
+                r_0, xc_0, drives, measure_w=measure_w)
+
+            rpsr.ws_measured_values.append(w_measurements[-1])
+            rpsr.n_trials_completed += 1
+
+        session.add(rpsr)
+        session.commit()
+    session.close()
