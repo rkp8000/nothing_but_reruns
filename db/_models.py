@@ -32,3 +32,39 @@ class SpontaneousReplayExtensionResult(Base):
     noise_stds = Column(ARRAY(Float))
     probed_replay_probs = Column(ARRAY(Float))
     n_trials_completed = Column(ARRAY(Float))
+
+
+class ReplayPlusStdpResult(Base):
+
+    __tablename__ = 'replay_plus_stdp_result'
+
+    id = Column(Integer, primary_key=True)
+
+    group = Column(String)
+    network_size = Column(Integer)
+    v_th = Column(Float)
+    rp = Column(Float)
+
+    sequences_strong = Column(ARRAY(Integer))
+    sequence_novel = Column(ARRAY(Integer))
+    drive_amplitude = Column(Float)
+
+    alpha = Column(Float)
+    t_x = Column(Float)
+    g_x = Column(Float)
+    w_0 = Column(Float)
+    w_1 = Column(Float)
+    noise_std = Column(Float)
+    beta_0 = Column(Float)
+    beta_1 = Column(Float)
+
+    trigger_interval = Column(Integer)
+    trigger_sequence = Column(ARRAY(Integer))
+    interruption_time = Column(Integer)
+    interruption_sequence = Column(ARRAY(Integer))
+
+    w_measurement_time = Column(Integer)
+    ws_measured = Column(ARRAY(Integer))
+
+    n_trials_completed = Column(Integer)
+    ws_measured_values = Column(ARRAY(Float))
