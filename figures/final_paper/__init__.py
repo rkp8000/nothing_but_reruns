@@ -530,7 +530,7 @@ def _replay_plus_stdp_example(
     # plot results
     axs[0].scatter(drive_times, nodes_reordered[drive_idxs], s=10, lw=0)
     axs[1].scatter(spike_times, nodes_reordered[spike_idxs], s=10, lw=0)
-    handle_0 = axs[2].plot(w_forwards, color='k', lw=2, label='forward')[0]
+    handle_0 = axs[2].plot(w_forwards, color='r', lw=2, label='forward')[0]
     handle_1 = axs[2].plot(w_reverses, color='c', lw=2, label='reverse')[0]
 
     axs[0].set_ylim(-1, 1.5 * len(node_order))
@@ -642,7 +642,7 @@ def replay_plus_stdp_periodic_stim(
     ax.set_ylim(rpsr.w_0 - .1*w_range, rpsr.w_1 + .1*w_range)
 
     ax.set_xlabel('trigger interval')
-    ax.set_ylabel('E[W(t=400)]')
+    ax.set_ylabel('W(t=400)')
 
     hs = hs[::2] + hs[1::2]
     ax_legend.legend(handles=hs, ncol=2, loc='best')
@@ -652,3 +652,73 @@ def replay_plus_stdp_periodic_stim(
     for ax in axs_ex + [ax]: plot.set_fontsize(ax, 14)
     session.close()
     return fig
+
+
+def replay_plus_stdp_spontaneous(
+        NETWORK_SIZE, V_TH, RP,
+        ALPHA, BETA_0, BETA_1, T_X, G_X, W_0, W_1,
+        SEQS_STRONG, SEQ_NOVEL, DRIVE_AMP, DURATION,
+        LABEL, SEED, NOISE_STD, TRIGGER_INTERVAL, TRIGGER_SEQ,
+        INTERRUPTION_TIME, INTERRUPTION_SEQ, NODE_ORDER,
+        GROUP, G_XS_STATS):
+    """
+    Show example plots and statistics for replay + stdp simulation
+    driven by spontaneous noise.
+    """
+    # preliminaries
+    session = db.connect_and_make_session('nothing_but_reruns')
+    assert len(G_XS_STATS) == 2
+    fig = plt.figure(figsize=(15, 7), tight_layout=True)
+
+    # run example
+    gs = gridspec.GridSpec(3, 5)
+    axs_ex = [fig.add_subplot(gs[0, :-2])]
+    axs_ex.extend([fig.add_subplot(gs[i, :-2], sharex=axs_ex[0]) for i in range(1, 3)])
+
+    _replay_plus_stdp_example(
+        axs=axs_ex, seed=SEED, network_size=NETWORK_SIZE, v_th=V_TH, rp=RP,
+        alpha=ALPHA, beta_0=BETA_0, beta_1=BETA_1, t_x=T_X, g_x=G_X,
+        w_0=W_0, w_1=W_1, seqs_strong=SEQS_STRONG, seq_novel=SEQ_NOVEL,
+        drive_amp=DRIVE_AMP, duration=DURATION, label=LABEL,
+        noise_std=NOISE_STD, trigger_interval=TRIGGER_INTERVAL,
+        trigger_seq=TRIGGER_SEQ, interruption_time=INTERRUPTION_TIME,
+        interruption_seq=INTERRUPTION_SEQ, node_order=NODE_ORDER)
+
+    # plot stats from saved simulation results
+    ax = fig.add_subplot(gs[:, -2:])
+    hs = []  # legend handles
+
+    for g_x, ls in zip(G_XS_STATS, ['-', '--']):
+        rpsrs = session.query(_models.ReplayPlusStdpResult).filter(
+            _models.ReplayPlusStdpResult.group == GROUP,
+            _models.ReplayPlusStdpResult.g_x.between(.99*g_x, 1.01*g_x)).order_by(
+            _models.ReplayPlusStdpResult.noise_std).all()
+
+        noise_stds = [rpsr.noise_std for rpsr in rpsrs]
+        ws_all = [np.array(rpsr.ws_measured_values) for rpsr in rpsrs]
+        n_weights = ws_all[0].shape
+
+        for fr_label, c in zip(['for', 'rev'], ['r', 'c']):
+
+            if fr_label == 'for':
+                ws = [w[:, :int(n_weights/2)] for w in ws_all]
+            elif fr_label == 'rev':
+                ws = [w[:, int(n_weights/2):] for w in ws_all]
+
+            means = [w.mean() for w in ws]
+
+            h = ax.plot(
+                noise_stds, means, lw=2, color=c, ls=ls,
+                label='G_X = {0:.1f} ({1})'.format(g_x, fr_label))[0]
+            hs.append(h)
+
+    ax.set_xlabel('noise std')
+    ax.set_ylabel('E[W(t = 400)]')
+    ax.legend(handles=hs)
+
+    for ax in axs_ex + [ax]: plot.set_fontsize(ax, 14)
+    session.close()
+    return fig
+
+
+
