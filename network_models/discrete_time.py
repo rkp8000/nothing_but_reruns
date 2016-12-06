@@ -173,13 +173,20 @@ class LocalWtaWithAthAndStdp(BasicWithAthAndTwoLevelStdp):
         """
 
         active = list(r.nonzero()[0])
+        temp_0 = np.zeros(self.node_distances.shape, dtype=bool)
+        temp_0[active, :] = True
+        temp_1 = np.zeros(self.node_distances.shape, dtype=bool)
+        temp_1[:, active] = True
+        mask_active = np.triu(temp_0 * temp_1, 1)
+        mask_invalid = mask_active * (self.node_distances <= self.wta_dist)
 
         # get all pairs of nodes that are too close together
-        invalid_pairs = []
-        for pair in combinations(active, 2):
+        invalid_pairs = zip(*mask_invalid.nonzero())
 
-            if 0 < self.node_distances[pair[0], pair[1]] <= self.wta_dist:
-                invalid_pairs.append(pair)
+        # for pair in combinations(active, 2):
+
+        #    if 0 < self.node_distances[pair[0], pair[1]] <= self.wta_dist:
+        #        invalid_pairs.append(pair)
 
         # turn off nodes with probability proportional to the sum of the inputs
         # of their potentially active neighbors until there are no more invalid pairs
