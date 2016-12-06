@@ -436,3 +436,136 @@ def record_replay_plus_stdp(
         session.add(rpsr)
         session.commit()
     session.close()
+
+
+def replay_plus_stdp(
+        NETWORK_SIZE, V_TH, RP,
+        ALPHA, BETA_0, BETA_1, T_X, G_X, W_0, W_1,
+        SEQS_STRONG, SEQ_NOVEL, DRIVE_AMP, DURATION,
+        LABELS, SEEDS, NOISE_STDS, TRIGGER_INTERVALS, TRIGGER_SEQS,
+        INTERRUPTION_TIMES, INTERRUPTION_SEQS, NODE_ORDER):
+    """
+    Display example traces of network dynamics with replay and stdp.
+    """
+    # preliminaries
+    session = db.connect_and_make_session('nothing_but_reruns')
+    fig = plt.figure(figsize=(15, 7 * len(SEEDS)), tight_layout=True)
+    axs = [fig.add_subplot(9, 1, 1)]
+    axs.extend([fig.add_subplot(9, 1, ctr, sharex=axs[0]) for ctr in range(2, 10)])
+
+    # run examples
+
+    # make base weight matrix
+    w_base, nodes = connectivity.hexagonal_lattice(NETWORK_SIZE)
+    nodes_reordered = plot.reorder_idxs(nodes, NODE_ORDER)
+
+    # make mask for strong connections
+    mask_w_strong = np.zeros(w_base.shape, dtype=bool)
+    for seq in SEQS_STRONG:
+        for node_from, node_to in zip(seq[:-1], seq[1:]):
+            mask_w_strong[nodes.index(node_to), nodes.index(node_from)] = True
+            mask_w_strong[nodes.index(node_from), nodes.index(node_to)] = True
+
+    # make network
+    w = W_0 * w_base
+    w[mask_w_strong] = W_1
+
+    ntwk = network.LocalWtaWithAthAndStdp(
+        th=V_TH, w=w, g_x=G_X, t_x=T_X, rp=RP,
+        stdp_params={'w_0': W_0, 'w_1': W_1, 'beta_0': BETA_0, 'beta_1': BETA_1},
+        wta_dist=2, wta_factor=ALPHA)
+
+    # make pre-noise drives
+    drives_base = np.zeros((1 + DURATION, len(nodes)))
+
+    # initial sequence
+    for ctr, node in enumerate(SEQ_NOVEL):
+        node_idx = nodes.index(node)
+        drives_base[ctr + 1, node_idx] = DRIVE_AMP
+
+    r_0 = np.zeros((len(nodes),))
+    xc_0 = np.zeros((len(nodes),))
+
+    # measurement function
+    ws_to_measure = [
+        (nodes.index(node_to), nodes.index(node_from))
+        for node_from, node_to in zip(SEQ_NOVEL[:-1], SEQ_NOVEL[1:])
+    ] + [
+        (nodes.index(node_to), nodes.index(node_from))
+        for node_from, node_to in zip(SEQ_NOVEL[::-1][:-1], SEQ_NOVEL[::-1][1:])
+    ]
+
+    def measure_w(w):
+        return [w[w_to_measure] for w_to_measure in ws_to_measure]
+
+    # loop over example parameters
+    for ctr, (label, seed, noise_std, trigger_interval,
+            trigger_seq, interruption_time, interruption_seq) in \
+            enumerate(zip(LABELS, SEEDS, NOISE_STDS, TRIGGER_INTERVALS,
+            TRIGGER_SEQS, INTERRUPTION_TIMES, INTERRUPTION_SEQS)):
+
+        np.random.seed(seed)
+        drives = drives_base.copy()
+
+        # add interruption sequence if present
+        interruption_epoch = []
+        if interruption_time:
+            for n_ctr, node in enumerate(interruption_seq):
+                t = n_ctr + interruption_time
+                node_idx = nodes.index(node)
+                drives[t, node_idx] = DRIVE_AMP
+                interruption_epoch.append(t)
+
+        # add triggers
+        if trigger_interval:
+            trigger_times = np.arange(1, 1 + DURATION, trigger_interval)[1:]
+
+            for t_ctr, t in enumerate(trigger_times):
+                if t in interruption_epoch: continue
+
+                node = trigger_seq[t_ctr % len(trigger_seq)]
+                node_idx = nodes.index(node)
+                drives[t, node_idx] = DRIVE_AMP
+
+        drive_times, drive_idxs = drives.nonzero()
+
+        # add noise
+        drives += noise_std * np.random.randn(*drives.shape)
+
+        # run network
+        rs, _, w_measurements = ntwk.run(
+            r_0=r_0, xc_0=xc_0, drives=drives, measure_w=measure_w)
+        w_measurements = np.array(w_measurements)
+        n_ws = w_measurements.shape[1]
+
+        spike_times, spike_idxs = rs.nonzero()
+        w_forwards = w_measurements[:, :int(n_ws/2)].mean(axis=1)
+        w_reverses = w_measurements[:, int(n_ws/2):].mean(axis=1)
+
+        # plot results
+        axs_ = axs[3*ctr:3*(ctr+1)]
+        axs_[0].scatter(drive_times, nodes_reordered[drive_idxs], s=10, lw=0)
+        axs_[1].scatter(spike_times, nodes_reordered[spike_idxs], s=10, lw=0)
+        handle_0 = axs_[2].plot(w_forwards, color='k', lw=2, label='forward')[0]
+        handle_1 = axs_[2].plot(w_reverses, color='c', lw=2, label='reverse')[0]
+
+        axs_[0].set_ylim(-1, 1.5 * len(NODE_ORDER))
+        axs_[1].set_ylim(-1, 1.5 * len(NODE_ORDER))
+
+        axs_[2].set_xlim(-1, len(drives))
+        axs_[2].set_ylim(W_0, W_1)
+
+        axs_[0].set_title('stimulus ({})'.format(label))
+        axs_[1].set_title('network response')
+        axs_[2].set_title('novel sequence weights')
+
+        axs_[2].set_xlabel('time step')
+
+        for ax in axs_[:2]: ax.set_ylabel('node')
+        axs_[2].set_ylabel('weight')
+
+        axs_[2].legend(handles=[handle_0, handle_1], loc='best')
+
+    for ax in axs: plot.set_fontsize(ax, 14)
+    session.close()
+    return fig
