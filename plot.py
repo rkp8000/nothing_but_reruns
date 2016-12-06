@@ -125,3 +125,16 @@ def get_n_colors(n, colormap='rainbow'):
     """
 
     return getattr(cm, colormap)(np.linspace(0, 1, n))
+
+
+def reorder_idxs(idxs, order):
+    """
+    Return an index that can be used to reorder a set of nodes.
+    """
+    idxs_reordered = -1 * np.ones((len(idxs),))
+
+    for ctr, idx in enumerate(idxs):
+        if idx in order: idxs_reordered[ctr] = order.index(idx)
+        else: idxs_reordered[ctr] = ctr
+
+    return idxs_reordered
