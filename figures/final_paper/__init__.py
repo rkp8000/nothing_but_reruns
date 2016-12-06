@@ -712,6 +712,12 @@ def replay_plus_stdp_spontaneous(
                 label='G_X = {0:.1f} ({1})'.format(g_x, fr_label))[0]
             hs.append(h)
 
+    ax.axhline(rpsr.w_0, color='k', zorder=-1)
+    ax.axhline(rpsr.w_1, color='k', zorder=-1)
+
+    w_range = rpsr.w_1 - rpsr.w_0
+    ax.set_ylim(rpsr.w_0 - .1 * w_range, rpsr.w_1 + .1 * w_range)
+
     ax.set_xlabel('noise std')
     ax.set_ylabel('E[W(t = 400)]')
     ax.legend(handles=hs)
@@ -721,4 +727,83 @@ def replay_plus_stdp_spontaneous(
     return fig
 
 
+def replay_plus_stdp_interrupted(NETWORK_SIZE, V_TH, RP,
+        ALPHA, BETA_0, BETA_1, T_X, G_X_EX, W_0, W_1,
+        SEQS_STRONG, SEQ_NOVEL, DRIVE_AMP, DURATION,
+        LABEL, SEED, NOISE_STD, TRIGGER_INTERVAL, TRIGGER_SEQ,
+        INTERRUPTION_TIME, INTERRUPTION_SEQ, NODE_ORDER,
+        GROUP, G_X):
+    """
+    Show examples and stats for replay + stdp simulation with interrupting
+    strong sequence.
+    """
+    # preliminaries
+    session = db.connect_and_make_session('nothing_but_reruns')
+    fig = plt.figure(figsize=(15, 7), tight_layout=True)
 
+    # run example
+    gs = gridspec.GridSpec(3, 5)
+    axs_ex = [fig.add_subplot(gs[0, :-2])]
+    axs_ex.extend([fig.add_subplot(gs[i, :-2], sharex=axs_ex[0]) for i in range(1, 3)])
+
+    _replay_plus_stdp_example(
+        axs=axs_ex, seed=SEED, network_size=NETWORK_SIZE, v_th=V_TH, rp=RP,
+        alpha=ALPHA, beta_0=BETA_0, beta_1=BETA_1, t_x=T_X, g_x=G_X_EX,
+        w_0=W_0, w_1=W_1, seqs_strong=SEQS_STRONG, seq_novel=SEQ_NOVEL,
+        drive_amp=DRIVE_AMP, duration=DURATION, label=LABEL,
+        noise_std=NOISE_STD, trigger_interval=TRIGGER_INTERVAL,
+        trigger_seq=TRIGGER_SEQ, interruption_time=INTERRUPTION_TIME,
+        interruption_seq=INTERRUPTION_SEQ, node_order=NODE_ORDER)
+
+    # plot stats from saved simulation results
+    ax = fig.add_subplot(gs[:-1, -2:])
+    ax_legend = fig.add_subplot(gs[-1, -2:])
+    hs = []  # legend handles
+
+    # get all results for this group
+    rpsrs_all = session.query(_models.ReplayPlusStdpResult).filter(
+        _models.ReplayPlusStdpResult.group == GROUP,
+        _models.ReplayPlusStdpResult.g_x.between(.99*G_X, 1.01*G_X))
+
+    # get all beta_1s
+    beta_1s = session.query(_models.ReplayPlusStdpResult.beta_1).filter(
+        _models.ReplayPlusStdpResult.group == GROUP,
+        _models.ReplayPlusStdpResult.g_x.between(.99*G_X, 1.01*G_X)).order_by(
+        _models.ReplayPlusStdpResult.beta_1).distinct().all()
+    beta_1s = [i[0] for i in beta_1s]
+
+    colors = plot.get_n_colors(len(beta_1s), 'afmhot')
+
+    # loop over beta_1 and plot mean w vs. alpha for each
+    for beta_1, c in zip(beta_1s, colors):
+        rpsrs = rpsrs_all.filter(
+            _models.ReplayPlusStdpResult.beta_1.between(.99*beta_1, 1.01*beta_1)
+        ).order_by(_models.ReplayPlusStdpResult.alpha).all()
+
+        alphas = [rpsr.alpha for rpsr in rpsrs]
+        ws = [np.array(rpsr.ws_measured_values) for rpsr in rpsrs]
+        n_weights = ws[0].shape[1]
+
+        w_for_means = [w[:, :int(n_weights/2)].mean() for w in ws]
+
+        h = ax.plot(
+            alphas, w_for_means, color=c, lw=2,
+            label='beta_1 = {0:.2f}'.format(beta_1))[0]
+        hs.append(h)
+
+    ax.axhline(rpsr.w_0, color='k', zorder=-1)
+    ax.axhline(rpsr.w_1, color='k', zorder=-1)
+
+    w_range = rpsr.w_1 - rpsr.w_0
+    ax.set_ylim(rpsr.w_0 - .1 * w_range, rpsr.w_1 + .1 * w_range)
+
+    ax.set_xlabel('alpha')
+    ax.set_ylabel('E[W(t=400)]')
+
+    ax_legend.legend(handles=hs, ncol=2, loc='best')
+    ax_legend.get_xaxis().set_visible(False)
+    ax_legend.get_yaxis().set_visible(False)
+
+    for ax in axs_ex + [ax]: plot.set_fontsize(ax, 14)
+    session.close()
+    return fig
