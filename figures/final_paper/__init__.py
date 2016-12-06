@@ -422,16 +422,20 @@ def record_replay_plus_stdp(
             ws_measured_values=[])
 
         # loop over trials
-        for _ in range(N_TRIALS):
+        for tr_ctr in range(N_TRIALS):
+
             # add noise
-            drives += noise_std * np.random.randn(*drives.shape)
+            drives_ = drives + (noise_std * np.random.randn(*drives.shape))
 
             # run network
             rs, _, w_measurements = ntwk.run(
-                r_0, xc_0, drives, measure_w=measure_w)
+                r_0, xc_0, drives_, measure_w=measure_w)
 
             rpsr.ws_measured_values.append(w_measurements[-1])
             rpsr.n_trials_completed += 1
+
+            if (tr_ctr + 1) % 25 == 0:
+                logging.info('{} trials completed.'.format(tr_ctr + 1))
 
         session.add(rpsr)
         session.commit()
@@ -524,8 +528,8 @@ def _replay_plus_stdp_example(
     n_ws = w_measurements.shape[1]
 
     spike_times, spike_idxs = rs.nonzero()
-    w_forwards = w_measurements[:, :int(n_ws/2)].mean(axis=1)
-    w_reverses = w_measurements[:, int(n_ws/2):].mean(axis=1)
+    w_forwards = w_measurements[:, 1:int(n_ws/2)].mean(axis=1)
+    w_reverses = w_measurements[:, int(n_ws/2):-1].mean(axis=1)
 
     # plot results
     axs[0].scatter(drive_times, nodes_reordered[drive_idxs], s=10, lw=0)
@@ -564,7 +568,7 @@ def replay_plus_stdp_periodic_stim(
     """
     # preliminaries
     session = db.connect_and_make_session('nothing_but_reruns')
-    assert len(G_XS_STATS) == 2
+    assert len(G_XS_STATS) <= 2
     fig = plt.figure(figsize=(15, 7), tight_layout=True)
 
     # run example
@@ -623,9 +627,9 @@ def replay_plus_stdp_periodic_stim(
             for fr_label, c in zip(['forward', 'reverse'], [c_f, c_r]):
 
                 if fr_label == 'forward':
-                    ws = [w[0, :int(n_weights/2)] for w in ws_all]
+                    ws = [w[0, 1:int(n_weights/2)] for w in ws_all]
                 elif fr_label == 'reverse':
-                    ws = [w[0, int(n_weights/2):] for w in ws_all]
+                    ws = [w[0, int(n_weights/2):-1] for w in ws_all]
 
                 means = [w.mean() for w in ws]
                 h = ax.plot(
@@ -701,9 +705,9 @@ def replay_plus_stdp_spontaneous(
         for fr_label, c in zip(['for', 'rev'], ['r', 'c']):
 
             if fr_label == 'for':
-                ws = [w[:, :int(n_weights/2)] for w in ws_all]
+                ws = [w[:, 1:int(n_weights/2)] for w in ws_all]
             elif fr_label == 'rev':
-                ws = [w[:, int(n_weights/2):] for w in ws_all]
+                ws = [w[:, int(n_weights/2):-1] for w in ws_all]
 
             means = [w.mean() for w in ws]
 
@@ -784,7 +788,7 @@ def replay_plus_stdp_interrupted(NETWORK_SIZE, V_TH, RP,
         ws = [np.array(rpsr.ws_measured_values) for rpsr in rpsrs]
         n_weights = ws[0].shape[1]
 
-        w_for_means = [w[:, :int(n_weights/2)].mean() for w in ws]
+        w_for_means = [w[:, 1:int(n_weights/2)].mean() for w in ws]
 
         h = ax.plot(
             alphas, w_for_means, color=c, lw=2,
@@ -804,6 +808,6 @@ def replay_plus_stdp_interrupted(NETWORK_SIZE, V_TH, RP,
     ax_legend.get_xaxis().set_visible(False)
     ax_legend.get_yaxis().set_visible(False)
 
-    for ax in axs_ex + [ax]: plot.set_fontsize(ax, 14)
+    for ax in axs_ex + [ax, ax_legend]: plot.set_fontsize(ax, 14)
     session.close()
     return fig
