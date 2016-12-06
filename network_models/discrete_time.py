@@ -62,11 +62,18 @@ class BasicWithAthAndTwoLevelStdp(object):
 
         if self.beta_0 == self.beta_1 == 0: return w
 
-        # loop through all sequential activations
-        for prev, curr in cproduct(r_prev.nonzero()[0], r.nonzero()[0]):
+        mask_prev = np.zeros(w.shape, dtype=bool)
+        mask_prev[:, r_prev.nonzero()[0]] = True
+        mask_next = np.zeros(w.shape, dtype=bool)
+        mask_next[r.nonzero()[0], :] = True
 
-            if w[prev, curr]: w[prev, curr] += self.beta_0*(self.w_0 - w[prev, curr])
-            if w[curr, prev]: w[curr, prev] += self.beta_1*(self.w_1 - w[curr, prev])
+        mask_seq = mask_prev * mask_next
+
+        mask_dec = mask_seq.T * (w != 0)
+        mask_inc = mask_seq * (w != 0)
+
+        w[mask_dec] += self.beta_0*(self.w_0 - w[mask_dec])
+        w[mask_inc] += self.beta_1*(self.w_1 - w[mask_inc])
 
         return w
 
