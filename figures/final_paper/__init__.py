@@ -306,6 +306,14 @@ def record_replay_plus_stdp(
             mask_w_strong[nodes.index(node_to), nodes.index(node_from)] = True
             mask_w_strong[nodes.index(node_from), nodes.index(node_to)] = True
 
+    # make target masks
+    mask_w_targ_for = mask_w_strong.copy()
+    mask_w_targ_bi = mask_w_strong.copy()
+    for node_from, node_to in zip(SEQ_NOVEL[:-1], SEQ_NOVEL[1:]):
+        mask_w_targ_for[nodes.index(node_to), nodes.index(node_from)] = True
+        mask_w_targ_bi[nodes.index(node_to), nodes.index(node_from)] = True
+        mask_w_targ_bi[nodes.index(node_from), nodes.index(node_to)] = True
+
     # make pre-noise drives
     drives_base = np.zeros((1 + W_MEASUREMENT_TIME, len(nodes)))
 
@@ -325,18 +333,6 @@ def record_replay_plus_stdp(
 
     r_0 = np.zeros((len(nodes),))
     xc_0 = np.zeros((len(nodes),))
-
-    # measurement function
-    ws_to_measure = [
-        (nodes.index(node_to), nodes.index(node_from))
-        for node_from, node_to in zip(SEQ_NOVEL[:-1], SEQ_NOVEL[1:])
-    ] + [
-        (nodes.index(node_to), nodes.index(node_from))
-        for node_from, node_to in zip(SEQ_NOVEL[::-1][:-1], SEQ_NOVEL[::-1][1:])
-    ]
-
-    def measure_w(w):
-        return [w[w_to_measure] for w_to_measure in ws_to_measure]
 
     # loop over desired param combinations
     order = [
@@ -363,9 +359,21 @@ def record_replay_plus_stdp(
                 'noise_std': noise_std, 'trigger_interval': trigger_interval
             }))
 
-        # make weight matrix
+        # make initial weight matrix
         w = w_0 * w_base
         w[mask_w_strong] = w_1
+
+        # make target weight matrices
+        w_targ_for = w_0 * w_base
+        w_targ_bi = w_0 * w_base
+        w_targ_for[mask_w_targ_for] = w_1
+        w_targ_bi[mask_w_targ_bi] = w_1
+
+        # make measurement function
+        def measure_w(w_):
+            dist_for = np.mean((w_ - w_targ_for) ** 2)
+            dist_bi = np.mean((w_ - w_targ_bi) ** 2)
+            return [dist_for, dist_bi]
 
         # set stdp params
         stdp_params = {
@@ -416,10 +424,9 @@ def record_replay_plus_stdp(
             interruption_sequence=INTERRUPTION_SEQ,
 
             w_measurement_time=W_MEASUREMENT_TIME,
-            ws_measured=ws_to_measure,
 
             n_trials_completed=0,
-            ws_measured_values=[])
+            w_scores=[])
 
         # loop over trials
         for tr_ctr in range(N_TRIALS):
@@ -431,7 +438,7 @@ def record_replay_plus_stdp(
             rs, _, w_measurements = ntwk.run(
                 r_0, xc_0, drives_, measure_w=measure_w)
 
-            rpsr.ws_measured_values.append(w_measurements[-1])
+            rpsr.w_scores.append(w_measurements[-1])
             rpsr.n_trials_completed += 1
 
             if (tr_ctr + 1) % 25 == 0:
@@ -461,9 +468,29 @@ def _replay_plus_stdp_example(
             mask_w_strong[nodes.index(node_to), nodes.index(node_from)] = True
             mask_w_strong[nodes.index(node_from), nodes.index(node_to)] = True
 
+    # make target masks
+    mask_w_targ_for = mask_w_strong.copy()
+    mask_w_targ_bi = mask_w_strong.copy()
+    for node_from, node_to in zip(SEQ_NOVEL[:-1], SEQ_NOVEL[1:]):
+        mask_w_targ_for[nodes.index(node_to), nodes.index(node_from)] = True
+        mask_w_targ_bi[nodes.index(node_to), nodes.index(node_from)] = True
+        mask_w_targ_bi[nodes.index(node_from), nodes.index(node_to)] = True
+
     # make network
     w = w_0 * w_base
     w[mask_w_strong] = w_1
+
+    # make target weight matrices
+    w_targ_for = w_0 * w_base
+    w_targ_bi = w_0 * w_base
+    w_targ_for[mask_w_targ_for] = w_1
+    w_targ_bi[mask_w_targ_bi] = w_1
+
+    # make measurement function
+    def measure_w(w_):
+        dist_for = np.mean((w_ - w_targ_for) ** 2)
+        dist_bi = np.mean((w_ - w_targ_bi) ** 2)
+        return [dist_for, dist_bi]
 
     ntwk = network.LocalWtaWithAthAndStdp(
         th=v_th, w=w, g_x=g_x, t_x=t_x, rp=rp,
@@ -480,18 +507,6 @@ def _replay_plus_stdp_example(
 
     r_0 = np.zeros((len(nodes),))
     xc_0 = np.zeros((len(nodes),))
-
-    # measurement function
-    ws_to_measure = [
-        (nodes.index(node_to), nodes.index(node_from))
-        for node_from, node_to in zip(seq_novel[:-1], seq_novel[1:])
-    ] + [
-        (nodes.index(node_to), nodes.index(node_from))
-        for node_from, node_to in zip(seq_novel[::-1][:-1], seq_novel[::-1][1:])
-    ]
-
-    def measure_w(w):
-        return [w[w_to_measure] for w_to_measure in ws_to_measure]
 
     np.random.seed(seed)
     drives = drives_base.copy()
@@ -525,17 +540,16 @@ def _replay_plus_stdp_example(
     rs, _, w_measurements = ntwk.run(
         r_0=r_0, xc_0=xc_0, drives=drives, measure_w=measure_w)
     w_measurements = np.array(w_measurements)
-    n_ws = w_measurements.shape[1]
+    dists_w_for = w_measurements[:, 0]
+    dists_w_bi = w_measurements[:, 1]
 
     spike_times, spike_idxs = rs.nonzero()
-    w_forwards = w_measurements[:, 1:int(n_ws/2)].mean(axis=1)
-    w_reverses = w_measurements[:, int(n_ws/2):-1].mean(axis=1)
 
     # plot results
     axs[0].scatter(drive_times, nodes_reordered[drive_idxs], s=10, lw=0)
     axs[1].scatter(spike_times, nodes_reordered[spike_idxs], s=10, lw=0)
-    handle_0 = axs[2].plot(w_forwards, color='r', lw=2, label='forward')[0]
-    handle_1 = axs[2].plot(w_reverses, color='c', lw=2, label='reverse')[0]
+    handle_0 = axs[2].plot(dists_w_for, color='r', lw=2, label='for')[0]
+    handle_1 = axs[2].plot(dists_w_bi, color='c', lw=2, label='bi')[0]
 
     axs[0].set_ylim(-1, 1.5 * len(node_order))
     axs[1].set_ylim(-1, 1.5 * len(node_order))
@@ -607,11 +621,11 @@ def replay_plus_stdp_periodic_stim(
 
         # get colors for forward and reverse weights
         cs_f = plot.get_n_colors(len(beta_1s), 'afmhot')
-        cs_r = plot.get_n_colors(len(beta_1s), 'winter')
+        cs_b = plot.get_n_colors(len(beta_1s), 'winter')
 
         # for each beta_1 plot mean final forward and reverse weights
         # vs. trigger interval
-        for beta_1, c_f, c_r in zip(beta_1s, cs_f, cs_r):
+        for beta_1, c_f, c_b in zip(beta_1s, cs_f, cs_b):
 
             # get all results with this beta_1
             rpsrs = rpsrs_all.filter(
@@ -621,17 +635,17 @@ def replay_plus_stdp_periodic_stim(
 
             # get trigger intervals and final measured weights
             tis = [rpsr.trigger_interval for rpsr in rpsrs]
-            ws_all = [np.array(rpsr.ws_measured_values) for rpsr in rpsrs]
-            n_weights = int(ws_all[0].shape[1])
+            ws = [np.array(rpsr.w_scores) for rpsr in rpsrs]
 
-            for fr_label, c in zip(['forward', 'reverse'], [c_f, c_r]):
+            for fr_label, c in zip(['for', 'bi'], [c_f, c_b]):
 
-                if fr_label == 'forward':
-                    ws = [w[0, 1:int(n_weights/2)] for w in ws_all]
-                elif fr_label == 'reverse':
-                    ws = [w[0, int(n_weights/2):-1] for w in ws_all]
+                if fr_label == 'for':
+                    w_scores = [w[:, 0] for w in ws]
+                elif fr_label == 'bi':
+                    w_scores = [w[:, 1] for w in ws]
 
-                means = [w.mean() for w in ws]
+                means = [w_score.mean() for w_score in w_scores]
+
                 h = ax.plot(
                     tis, means, color=c, lw=2, ls=ls,
                     label='beta = {0:.2f} ({1})'.format(beta_1, fr_label[:3]))[0]
@@ -671,7 +685,6 @@ def replay_plus_stdp_spontaneous(
     """
     # preliminaries
     session = db.connect_and_make_session('nothing_but_reruns')
-    assert len(G_XS_STATS) == 2
     fig = plt.figure(figsize=(15, 7), tight_layout=True)
 
     # run example
@@ -699,17 +712,16 @@ def replay_plus_stdp_spontaneous(
             _models.ReplayPlusStdpResult.noise_std).all()
 
         noise_stds = [rpsr.noise_std for rpsr in rpsrs]
-        ws_all = [np.array(rpsr.ws_measured_values) for rpsr in rpsrs]
-        n_weights = ws_all[0].shape
+        ws = [np.array(rpsr.w_scores) for rpsr in rpsrs]
 
-        for fr_label, c in zip(['for', 'rev'], ['r', 'c']):
+        for fr_label, c in zip(['for', 'bi'], ['r', 'c']):
 
             if fr_label == 'for':
-                ws = [w[:, 1:int(n_weights/2)] for w in ws_all]
-            elif fr_label == 'rev':
-                ws = [w[:, int(n_weights/2):-1] for w in ws_all]
+                w_scores = [w[:, 0] for w in ws]
+            elif fr_label == 'bi':
+                w_scores = [w[:, 1] for w in ws]
 
-            means = [w.mean() for w in ws]
+            means = [w_score.mean() for w_score in w_scores]
 
             h = ax.plot(
                 noise_stds, means, lw=2, color=c, ls=ls,
@@ -785,13 +797,12 @@ def replay_plus_stdp_interrupted(NETWORK_SIZE, V_TH, RP,
         ).order_by(_models.ReplayPlusStdpResult.alpha).all()
 
         alphas = [rpsr.alpha for rpsr in rpsrs]
-        ws = [np.array(rpsr.ws_measured_values) for rpsr in rpsrs]
-        n_weights = ws[0].shape[1]
+        ws = [np.array(rpsr.w_scores) for rpsr in rpsrs]
 
-        w_for_means = [w[:, 1:int(n_weights/2)].mean() for w in ws]
+        w_scores = [w[:, 0].mean() for w in ws]
 
         h = ax.plot(
-            alphas, w_for_means, color=c, lw=2,
+            alphas, w_scores, color=c, lw=2,
             label='beta_1 = {0:.2f}'.format(beta_1))[0]
         hs.append(h)
 

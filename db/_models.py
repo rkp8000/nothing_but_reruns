@@ -64,7 +64,6 @@ class ReplayPlusStdpResult(Base):
     interruption_sequence = Column(ARRAY(Integer))
 
     w_measurement_time = Column(Integer)
-    ws_measured = Column(ARRAY(Integer))
 
     n_trials_completed = Column(Integer)
-    ws_measured_values = Column(ARRAY(Float))
+    w_scores = Column(ARRAY(Float))
