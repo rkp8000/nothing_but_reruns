@@ -14,6 +14,272 @@ import plot
 from shortcuts import zip_cproduct
 
 
+def replay_demo_simplified_and_lif(
+        # simplified network
+        V_TH, G_W, G_X, T_X, RP,
+        # lif network
+        SEED, DT, OFFSET,
+        W_PP, W_MP, W_PM, W_MM, W_PI, W_IP,
+        TAU_P, TAU_M, TAU_I,
+        V_REST_P, V_REST_M, V_REST_I,
+        V_TH_P, V_TH_M, V_TH_I,
+        V_RESET_P, V_RESET_M, V_RESET_I,
+        RP_P, RP_M, RP_I,
+        TAUS_SYN, V_REVS_SYN,
+        SEQ_START, SEQ_DUR, SEQ_STAGGER, SEQ_FREQ, SEQ_AMP,
+        REPLAY_START, REPLAY_DUR, REPLAY_FREQ, REPLAY_AMP,
+        RESET_START, RESET_DUR, RESET_AMP, RESET_FREQ,
+        BKGD_GABA_AMP, BKGD_GABA_FREQ,
+        BKGD_GABA_AMP_MEM, BKGD_GABA_FREQ_MEM):
+    """
+    Demonstrate activation-triggered-hyperexcitability-mediated sequence
+    replay in simplified and LIF network.
+    """
+    fig = plt.figure(figsize=(15, 15), tight_layout=True)
+    gs = gridspec.GridSpec(6, 3)
+
+    # simplified model
+    fig.add_subplot(gs[0, :])  # diagrams will go here
+    axs = [fig.add_subplot(gs[ctr, :]) for ctr in range(1, 3)]
+
+    # build weight matrix
+    w = G_W * np.array([
+        [0, 0, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0],
+        [0, 0, 0, 1, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 1, 0],
+    ], dtype=float)
+
+    ntwk = network.BasicWithAthAndTwoLevelStdp(V_TH, w, G_X, T_X, RP, stdp_params=None)
+
+    # make stimulus
+    drives = np.zeros((5 * T_X, 7), dtype=float)
+
+    # first sequence encoding
+    drives[1, 0] = 1
+    drives[2, 1] = 1
+    drives[3, 2] = 1
+    drives[4, 3] = 1
+    drives[5, 4] = 1
+
+    # first sequence replay
+    drives[T_X, 0] = 1
+
+    # second sequence encoding
+    drives[3 * T_X + 1, 0] = 1
+    drives[3 * T_X + 2, 1] = 1
+    drives[3 * T_X + 3, 2] = 1
+    drives[3 * T_X + 4, 5] = 1
+    drives[3 * T_X + 5, 6] = 1
+
+    # second sequence replay
+    drives[4 * T_X, 0] = 1
+
+    # run network
+    r_0 = np.zeros((7,))
+    xc_0 = np.zeros((7,))
+    rs, _ = ntwk.run(r_0, xc_0, 5*drives)
+
+    # plot drives
+    drive_times, drive_idxs = drives.nonzero()
+    axs[0].scatter(drive_times, drive_idxs, c='b', lw=0)
+    axs[0].set_title('stimulus')
+
+    # plot spikes
+    spike_times, spike_idxs = rs.nonzero()
+    axs[1].scatter(spike_times, spike_idxs, c='k', lw=0)
+
+    axs[1].set_xlabel('time step')
+    axs[1].set_title('spikes')
+
+    for ax in axs:
+        ax.set_xlim(0, len(drives))
+
+    for ax in axs:
+        ax.set_ylabel('unit')
+        ax.set_yticks([0, 2, 4, 6])
+        ax.set_yticklabels([1, 3, 5, 7])
+        plot.set_fontsize(ax, 16)
+
+    # lif implementation
+    axs = [fig.add_subplot(gs[ctr, :]) for ctr in range(4, 6)] + \
+        [fig.add_subplot(gs[3, 2])]
+
+    np.random.seed(SEED)
+
+    # build weight matrices
+    w_base = np.array([
+        [0, 0, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0],
+        [0, 0, 0, 1, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 1, 0],
+    ], dtype=float)
+
+    w_pp = W_PP * w_base
+    w_pm = W_PM * np.eye(7)
+    w_mm = W_MM * np.eye(7)
+    w_mp = W_MP * np.eye(7)
+    w_pi = W_PI * np.ones((7,))
+    w_ip = W_IP * np.ones((7,))
+
+    w_ampa = np.zeros((15, 15))
+    w_nmda = np.zeros((15, 15))
+    w_gaba = np.zeros((15, 15))
+
+    w_ampa[7:14, :7] = w_mp
+    w_ampa[-1, :7] = w_ip
+
+    w_nmda[:7, :7] = w_pp
+    w_nmda[:7, 7:14] = w_pm
+    w_nmda[7:14, 7:14] = w_mm
+
+    w_gaba[:7, -1] = w_pi
+
+    ws = {'ampa': w_ampa, 'nmda': w_nmda, 'gaba': w_gaba}
+
+    # build network
+    cc = np.concatenate
+    taus_m = cc([TAU_P * np.ones((7,)), TAU_M * np.ones((7,)), [TAU_I]])
+    v_rests = cc([V_REST_P * np.ones((7,)), V_REST_M * np.ones((7,)), [V_REST_I]])
+    v_ths = cc([V_TH_P * np.ones((7,)), V_TH_M * np.ones((7,)), [V_TH_I]])
+    v_resets = cc([V_RESET_P * np.ones((7,)), V_RESET_M * np.ones((7,)), [V_RESET_I]])
+    refrac_pers = cc([RP_P * np.ones((7,)), RP_M * np.ones((7,)), [RP_I]])
+
+    ntwk = network.LIFExponentialSynapsesModel(
+        taus_m=taus_m, v_rests=v_rests, v_ths=v_ths, v_resets=v_resets,
+        refrac_pers=refrac_pers, taus_syn=TAUS_SYN, v_revs_syn=V_REVS_SYN, ws=ws)
+
+    # build stimulus
+    dt = DT
+    dur = 2*OFFSET
+    n_steps = int(dur/dt)
+
+    drives = {syn: np.zeros((n_steps, 15)) for syn in ws.keys()}
+
+    seq_start = int(SEQ_START/dt)
+    seq_dur = int(SEQ_DUR/dt)
+    seq_stagger = int(SEQ_STAGGER/dt)
+
+    replay_start = int(REPLAY_START/dt)
+    replay_dur = int(REPLAY_DUR/dt)
+
+    seq_order_0 = (0, 1, 2, 3, 4)
+    seq_order_1 = (0, 1, 2, 5, 6)
+
+    for offset, seq_order in zip((0, int(OFFSET/dt)), (seq_order_0, seq_order_1)):
+        # excitatory drives
+        for ctr, node in enumerate(seq_order):
+
+            start = offset + seq_start + seq_stagger*ctr
+            end = start + seq_dur
+            inputs = SEQ_AMP * \
+                (np.random.rand(end-start) < (SEQ_FREQ*dt)).astype(float)
+
+            drives['ampa'][start:end, node] = inputs
+
+        start = offset + replay_start
+        end = start + replay_dur
+        inputs = REPLAY_AMP * \
+            (np.random.rand(end-start) < (REPLAY_FREQ*dt)).astype(float)
+
+        drives['ampa'][start:end, seq_order[0]] = inputs
+
+        # inhibitory drives
+        ## reset
+        start = offset + int(RESET_START/dt)
+        end = start + int(RESET_DUR/dt)
+        inputs = RESET_AMP * \
+            (np.random.rand(end-start, 7) < (RESET_FREQ*dt)).astype(float)
+
+        drives['gaba'][start:end, 7:14] = inputs
+
+        ## background
+        start = offset
+        end = offset + seq_start + seq_stagger * (len(seq_order) - 1) + \
+              seq_dur + int(0.2/dt)
+        inputs = BKGD_GABA_AMP * \
+            (np.random.rand(end-start, 7) < (BKGD_GABA_FREQ*dt)).astype(float)
+
+        drives['gaba'][start:end, :7] = inputs
+
+    # inhibitory background to memory units
+    drives['gaba'][:, 7:14] += BKGD_GABA_AMP_MEM * \
+        (np.random.rand(len(drives['gaba']), 7) < (BKGD_GABA_FREQ_MEM*dt)).\
+        astype(float)
+
+    # set initial network conditions
+    initial_conditions = {
+        'voltages': v_rests,
+        'conductances': {syn: np.zeros((15,)) for syn in ws.keys()},
+        'refrac_ctrs': np.zeros((15,)),
+    }
+
+    # run network
+    measurements = ntwk.run(
+        initial_conditions=initial_conditions, drives=drives, dt=dt,
+        record=('voltages', 'spikes'))
+
+    # make plots
+    marker_size = 15
+
+    handles = []
+
+    # plot ampa drives to primary neurons
+    drive_times, drive_idxs = drives['ampa'][:, :7].nonzero()
+    drive_times = dt * drive_times.astype(float)
+
+    handles.append(axs[0].scatter(
+        drive_times, drive_idxs + 14,
+        marker='|', s=marker_size, lw=1.5, c='b', label='AMPA'))
+
+    # plot gaba drives to memory neurons
+    drive_times, drive_idxs = drives['gaba'][:, 7:14].nonzero()
+    drive_times = dt * drive_times.astype(float)
+
+    handles.append(axs[0].scatter(
+        drive_times, drive_idxs + 4, marker='|', s=marker_size, c='r', label='NMDA'))
+
+    # plot primary spikes
+    spike_times, spike_idxs = measurements['spikes'][:, :7].nonzero()
+    spike_times = dt * spike_times.astype(float)
+
+    axs[1].scatter(
+        spike_times, spike_idxs + 14, marker='|', lw=1.3, s=marker_size, c='k')
+
+    # plot memory spikes
+    spike_times, spike_idxs = measurements['spikes'][:, 7:14].nonzero()
+    spike_times = dt * spike_times.astype(float)
+
+    axs[1].scatter(spike_times, spike_idxs + 4, marker='|', s=marker_size, c='g')
+
+    # plot inhibitory spikes
+    spike_times, spike_idxs = measurements['spikes'][:, [14]].nonzero()
+    spike_times = dt * spike_times.astype(float)
+
+    axs[1].scatter(spike_times, spike_idxs, marker='|', s=marker_size, c='r')
+
+    for ax in axs:
+        ax.set_xlim(0, 8)
+        ax.set_ylim(-1, 21)
+        ax.set_yticks([0, 4, 7, 10, 14, 17, 20])
+        ax.set_yticklabels(['I1', 'M1', 'M4', 'M7', 'P1', 'P4', 'P7'])
+        ax.set_ylabel('neuron')
+
+    axs[0].set_title('stimulus')
+    axs[1].set_title('spikes')
+    axs[1].set_xlabel('time (s)')
+
+    for ax in axs: plot.set_fontsize(ax, 16)
+
+    return fig
+
+
 def record_extension_by_spontaneous_replay(
         SEED, GROUP_NAME, LOG_FILE,
         NETWORK_SIZE, V_TH, RP, T_X,
@@ -471,7 +737,7 @@ def _replay_plus_stdp_example(
     # make target masks
     mask_w_targ_for = mask_w_strong.copy()
     mask_w_targ_bi = mask_w_strong.copy()
-    for node_from, node_to in zip(SEQ_NOVEL[:-1], SEQ_NOVEL[1:]):
+    for node_from, node_to in zip(seq_novel[:-1], seq_novel[1:]):
         mask_w_targ_for[nodes.index(node_to), nodes.index(node_from)] = True
         mask_w_targ_bi[nodes.index(node_to), nodes.index(node_from)] = True
         mask_w_targ_bi[nodes.index(node_from), nodes.index(node_to)] = True
@@ -555,7 +821,6 @@ def _replay_plus_stdp_example(
     axs[1].set_ylim(-1, 1.5 * len(node_order))
 
     axs[2].set_xlim(-1, len(drives))
-    axs[2].set_ylim(w_0, w_1)
 
     axs[0].set_title('stimulus ({})'.format(label))
     axs[1].set_title('network response')
@@ -653,14 +918,8 @@ def replay_plus_stdp_periodic_stim(
                 if ls == '-':
                     hs.append(h)
 
-    ax.axhline(rpsr.w_0, color='k', zorder=-1)
-    ax.axhline(rpsr.w_1, color='k', zorder=-1)
-
-    w_range = rpsr.w_1 - rpsr.w_0
-    ax.set_ylim(rpsr.w_0 - .1*w_range, rpsr.w_1 + .1*w_range)
-
     ax.set_xlabel('trigger interval')
-    ax.set_ylabel('W(t=400)')
+    ax.set_ylabel('score')
 
     hs = hs[::2] + hs[1::2]
     ax_legend.legend(handles=hs, ncol=2, loc='best')
@@ -728,14 +987,7 @@ def replay_plus_stdp_spontaneous(
                 label='G_X = {0:.1f} ({1})'.format(g_x, fr_label))[0]
             hs.append(h)
 
-    ax.axhline(rpsr.w_0, color='k', zorder=-1)
-    ax.axhline(rpsr.w_1, color='k', zorder=-1)
-
-    w_range = rpsr.w_1 - rpsr.w_0
-    ax.set_ylim(rpsr.w_0 - .1 * w_range, rpsr.w_1 + .1 * w_range)
-
     ax.set_xlabel('noise std')
-    ax.set_ylabel('E[W(t = 400)]')
     ax.legend(handles=hs)
 
     for ax in axs_ex + [ax]: plot.set_fontsize(ax, 14)
@@ -806,14 +1058,7 @@ def replay_plus_stdp_interrupted(NETWORK_SIZE, V_TH, RP,
             label='beta_1 = {0:.2f}'.format(beta_1))[0]
         hs.append(h)
 
-    ax.axhline(rpsr.w_0, color='k', zorder=-1)
-    ax.axhline(rpsr.w_1, color='k', zorder=-1)
-
-    w_range = rpsr.w_1 - rpsr.w_0
-    ax.set_ylim(rpsr.w_0 - .1 * w_range, rpsr.w_1 + .1 * w_range)
-
     ax.set_xlabel('alpha')
-    ax.set_ylabel('E[W(t=400)]')
 
     ax_legend.legend(handles=hs, ncol=2, loc='best')
     ax_legend.get_xaxis().set_visible(False)
