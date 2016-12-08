@@ -33,7 +33,7 @@ def reorder_idxs(original, first):
         raise Exception('first elements contain unknown element')
 
     reordered = list(first) + [x for x in original if x not in first]
-    idxs_reordered = [original.index(x) for x in reordered]
+    idxs_reordered = np.array([original.index(x) for x in reordered]).astype(int)
 
     return reordered, idxs_reordered
 

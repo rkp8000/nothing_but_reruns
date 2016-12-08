@@ -13,7 +13,7 @@ def test_reorder_indexes_works_on_examples():
     reordered, idxs = reorder_idxs(original, first)
 
     assert reordered == reordered_correct
-    assert idxs == idxs_correct
+    assert list(idxs) == idxs_correct
 
 
 def test_zip_cproduct_works_on_examples():
