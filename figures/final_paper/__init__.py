@@ -11,7 +11,7 @@ from db import _models
 import db
 import network
 import plot
-from shortcuts import make_drive_seq, zip_cproduct
+from shortcuts import make_drive_seq, zip_cproduct, reorder_idxs
 
 
 def replay_demo_simplified_and_lif(
@@ -309,7 +309,7 @@ def multiple_and_reverse_replay(
         # reverse replay simplified demo
         SEQ_REVS, NODE_ORDER_REVERSE,
         # lif network
-        SEED_LIF, DT, OFFSET,
+        SEED_LIF, NETWORK_SIZE_LIF, DT, OFFSET,
         W_PP, W_MP, W_PM, W_MM, W_PI, W_IP,
         TAU_P, TAU_M, TAU_I,
         V_REST_P, V_REST_M, V_REST_I,
@@ -318,7 +318,7 @@ def multiple_and_reverse_replay(
         RP_P, RP_M, RP_I,
         TAUS_SYN, V_REVS_SYN,
         SEQ_START, SEQ_DUR, SEQ_STAGGER, SEQ_FREQ, SEQ_AMP,
-        REPLAY_START, REPLAY_DUR, REPLAY_FREQ, REPLAY_AMP,
+        REPLAY_START_FOR, REPLAY_START_REV, REPLAY_DUR, REPLAY_FREQ, REPLAY_AMP,
         RESET_START, RESET_DUR, RESET_AMP, RESET_FREQ,
         BKGD_GABA_AMP, BKGD_GABA_FREQ,
         BKGD_GABA_AMP_MEM, BKGD_GABA_FREQ_MEM):
@@ -326,8 +326,8 @@ def multiple_and_reverse_replay(
     Show figures displaying replay of multiple sequences, priming, and
     reverse replay.
     """
-    fig = plt.figure(figsize=(15, 15), tight_layout=True)
-    gs = gridspec.GridSpec(6, 4)
+    fig = plt.figure(figsize=(15, 20), tight_layout=True)
+    gs = gridspec.GridSpec(8, 4)
     np.random.seed(SEED_SIMPLIFIED)
 
     # build simplified network
@@ -373,7 +373,7 @@ def multiple_and_reverse_replay(
 
     # plot results
     axs = [fig.add_subplot(gs[ctr, :]) for ctr in range(2)]
-    nodes_reordered = plot.reorder_idxs(nodes, NODE_ORDER_MULTIPLE)
+    nodes_reordered = reorder_idxs(nodes, NODE_ORDER_MULTIPLE)[1]
     axs[0].scatter(drive_times, nodes_reordered[drive_idxs], lw=0, color='b')
     axs[1].scatter(spike_times, nodes_reordered[spike_idxs], lw=0, color='k')
 
@@ -390,8 +390,9 @@ def multiple_and_reverse_replay(
     len_single_run = 2 * T_X
 
     # build stimulus
-    drives = np.zeros((len(SEQ_REVS) * len_single_run, len(nodes)))
-    starts = 1 + np.arange(0, len(SEQ_REVS)*len_single_run, len_single_run)
+    assert len(SEQ_REVS) == 2
+    drives = np.zeros((2*len_single_run, len(nodes)))
+    starts = 1 + np.arange(0, 2*len_single_run, len_single_run)
 
     for start, seq in zip(starts, SEQ_REVS):
         drives += 2*make_drive_seq(
@@ -410,7 +411,7 @@ def multiple_and_reverse_replay(
 
     # plot results
     axs = [fig.add_subplot(gs[ctr, :]) for ctr in range(2, 4)]
-    nodes_reordered = plot.reorder_idxs(nodes, NODE_ORDER_REVERSE)
+    nodes_reordered = reorder_idxs(nodes, NODE_ORDER_REVERSE)[1]
     axs[0].scatter(drive_times, nodes_reordered[drive_idxs], lw=0, color='b')
     axs[1].scatter(spike_times, nodes_reordered[spike_idxs], lw=0, color='k')
 
@@ -427,53 +428,172 @@ def multiple_and_reverse_replay(
     np.random.seed(SEED_LIF)
 
     # build weight matrices
-    w_base = np.array([
-        [0, 0, 0, 0, 0, 0, 0],
-        [1, 0, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 1, 0],
-    ], dtype=float)
+    w_base, nodes = connectivity.hexagonal_lattice(NETWORK_SIZE_LIF)
+    # reorder nodes for nicer graphical presentation
+    nodes, idxs = reorder_idxs(nodes, NODE_ORDER_REVERSE)
+    w_base = w_base[idxs, :][:, idxs]
+
+    n = len(nodes)
 
     w_pp = W_PP * w_base
-    w_pm = W_PM * np.eye(7)
-    w_mm = W_MM * np.eye(7)
-    w_mp = W_MP * np.eye(7)
-    w_pi = W_PI * np.ones((7,))
-    w_ip = W_IP * np.ones((7,))
+    w_pm = W_PM * np.eye(n)
+    w_mm = W_MM * np.eye(n)
+    w_mp = W_MP * np.eye(n)
+    w_pi = W_PI * np.ones((n,))
+    w_ip = W_IP * np.ones((n,))
 
-    w_ampa = np.zeros((15, 15))
-    w_nmda = np.zeros((15, 15))
-    w_gaba = np.zeros((15, 15))
+    w_ampa = np.zeros((2*n+1, 2*n+1))
+    w_nmda = np.zeros((2*n+1, 2*n+1))
+    w_gaba = np.zeros((2*n+1, 2*n+1))
 
-    w_ampa[7:14, :7] = w_mp
-    w_ampa[-1, :7] = w_ip
+    w_ampa[n:2*n, :n] = w_mp
+    w_ampa[-1, :n] = w_ip
 
-    w_nmda[:7, :7] = w_pp
-    w_nmda[:7, 7:14] = w_pm
-    w_nmda[7:14, 7:14] = w_mm
+    w_nmda[:n, :n] = w_pp
+    w_nmda[:n, n:2*n] = w_pm
+    w_nmda[n:2*n, n:2*n] = w_mm
 
-    w_gaba[:7, -1] = w_pi
+    w_gaba[:n, -1] = w_pi
 
     ws = {'ampa': w_ampa, 'nmda': w_nmda, 'gaba': w_gaba}
 
     # build network
     cc = np.concatenate
-    taus_m = cc([TAU_P * np.ones((7,)), TAU_M * np.ones((7,)), [TAU_I]])
-    v_rests = cc([V_REST_P * np.ones((7,)), V_REST_M * np.ones((7,)), [V_REST_I]])
-    v_ths = cc([V_TH_P * np.ones((7,)), V_TH_M * np.ones((7,)), [V_TH_I]])
-    v_resets = cc([V_RESET_P * np.ones((7,)), V_RESET_M * np.ones((7,)), [V_RESET_I]])
-    refrac_pers = cc([RP_P * np.ones((7,)), RP_M * np.ones((7,)), [RP_I]])
+    taus_m = cc([TAU_P * np.ones((n,)), TAU_M * np.ones((n,)), [TAU_I]])
+    v_rests = cc([V_REST_P * np.ones((n,)), V_REST_M * np.ones((n,)), [V_REST_I]])
+    v_ths = cc([V_TH_P * np.ones((n,)), V_TH_M * np.ones((n,)), [V_TH_I]])
+    v_resets = cc([V_RESET_P * np.ones((n,)), V_RESET_M * np.ones((n,)), [V_RESET_I]])
+    refrac_pers = cc([RP_P * np.ones((n,)), RP_M * np.ones((n,)), [RP_I]])
 
     ntwk = network.LIFExponentialSynapsesModel(
         taus_m=taus_m, v_rests=v_rests, v_ths=v_ths, v_resets=v_resets,
         refrac_pers=refrac_pers, taus_syn=TAUS_SYN, v_revs_syn=V_REVS_SYN, ws=ws)
 
     # build stimulus
+    dt = DT
+    dur = 2*OFFSET
+    n_steps = int(dur/dt)
+
+    drives = {syn: np.zeros((n_steps, 2*n+1)) for syn in ws.keys()}
+
+    seq_start = int(SEQ_START/dt)
+    seq_dur = int(SEQ_DUR/dt)
+    seq_stagger = int(SEQ_STAGGER/dt)
+
+    replay_start_for = int(REPLAY_START_FOR/dt)
+    replay_start_rev = int(REPLAY_START_REV/dt)
+    replay_dur = int(REPLAY_DUR/dt)
+
+    offsets = [0, int(OFFSET/dt)]
+    seq_orders = [[nodes.index(node) for node in seq] for seq in SEQ_REVS]
+
+    for offset, seq_order in zip(offsets, seq_orders):
+        # excitatory drives
+
+        ## initial sequence
+        for ctr, node_idx in enumerate(seq_order):
+            start = offset + seq_start + seq_stagger*ctr
+            end = start + seq_dur
+            inputs = SEQ_AMP * \
+                (np.random.rand(end-start) < (SEQ_FREQ*dt)).astype(float)
+
+            drives['ampa'][start:end, node_idx] = inputs
+
+        ## replay triggers
+        for replay_start in [replay_start_for, replay_start_rev]:
+            start = offset + replay_start
+            end = start + replay_dur
+            inputs = REPLAY_AMP * \
+                (np.random.rand(end-start) < (REPLAY_FREQ*dt)).astype(float)
+
+            drives['ampa'][start:end, seq_order[0]] = inputs
+
+        # inhibitory drives
+        ## reset
+        start = offset + int(RESET_START/dt)
+        end = start + int(RESET_DUR/dt)
+        inputs = RESET_AMP * \
+            (np.random.rand(end-start, n) < (RESET_FREQ*dt)).astype(float)
+
+        drives['gaba'][start:end, n:2*n] = inputs
+
+        ## background during initial sequence presentation
+        start = offset
+        end = offset + seq_start + seq_stagger * (len(seq_order) - 1) + \
+              seq_dur + int(0.2/dt)
+        inputs = BKGD_GABA_AMP * \
+            (np.random.rand(end-start, n) < (BKGD_GABA_FREQ*dt)).astype(float)
+
+        drives['gaba'][start:end, :n] = inputs
+
+    # inhibitory background to memory units
+    drives['gaba'][:, n:2*n] += BKGD_GABA_AMP_MEM * \
+        (np.random.rand(len(drives['gaba']), n) < (BKGD_GABA_FREQ_MEM*dt)).\
+        astype(float)
+
+    # set initial network conditions
+    initial_conditions = {
+        'voltages': v_rests,
+        'conductances': {syn: np.zeros((2*n+1,)) for syn in ws.keys()},
+        'refrac_ctrs': np.zeros((2*n+1,)),
+    }
 
     # run network
+    measurements = ntwk.run(
+        initial_conditions=initial_conditions, drives=drives, dt=dt,
+        record=('voltages', 'spikes'))
+
+    # make plots
+    axs = [fig.add_subplot(gs[ctr:ctr+2, :]) for ctr in [4, 6]]
+    nodes_reordered = reorder_idxs(nodes, NODE_ORDER_REVERSE)
+    marker_size = 15
+
+    handles = []
+
+    # plot ampa drives to primary neurons
+    drive_times, drive_idxs = drives['ampa'][:, :n].nonzero()
+    drive_times = dt * drive_times.astype(float)
+
+    handles.append(axs[0].scatter(
+        drive_times, drive_idxs + 2*n,
+        marker='|', s=marker_size, lw=1.5, c='b', label='AMPA'))
+
+    # plot gaba drives to memory neurons
+    drive_times, drive_idxs = drives['gaba'][:, n:2*n].nonzero()
+    drive_times = dt * drive_times.astype(float)
+
+    handles.append(axs[0].scatter(
+        drive_times, drive_idxs + 4, marker='|', s=marker_size, c='r', label='NMDA'))
+
+    # plot primary spikes
+    spike_times, spike_idxs = measurements['spikes'][:, :n].nonzero()
+    spike_times = dt * spike_times.astype(float)
+
+    axs[1].scatter(
+        spike_times, spike_idxs + 2*n, marker='|', lw=1.3, s=marker_size, c='k')
+
+    # plot memory spikes
+    spike_times, spike_idxs = measurements['spikes'][:, n:2*n].nonzero()
+    spike_times = dt * spike_times.astype(float)
+
+    axs[1].scatter(spike_times, spike_idxs + 4, marker='|', s=marker_size, c='g')
+
+    # plot inhibitory spikes
+    spike_times, spike_idxs = measurements['spikes'][:, [2*n]].nonzero()
+    spike_times = dt * spike_times.astype(float)
+
+    axs[1].scatter(spike_times, spike_idxs, marker='|', s=marker_size, c='r')
+
+    for ax in axs:
+        ax.set_ylabel('neuron')
+
+    axs[0].set_title('stimulus')
+    axs[1].set_title('spikes')
+    axs[1].set_xlabel('time (s)')
+
+    for ax in axs: plot.set_fontsize(ax, 16)
+
+    return fig
 
 
 def record_extension_by_spontaneous_replay(
@@ -921,7 +1041,7 @@ def _replay_plus_stdp_example(
     """
     # make base weight matrix
     w_base, nodes = connectivity.hexagonal_lattice(network_size)
-    nodes_reordered = plot.reorder_idxs(nodes, node_order)
+    nodes_reordered = reorder_idxs(nodes, node_order)
 
     # make mask for strong connections
     mask_w_strong = np.zeros(w_base.shape, dtype=bool)
