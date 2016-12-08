@@ -11,7 +11,7 @@ from db import _models
 import db
 import network
 import plot
-from shortcuts import zip_cproduct
+from shortcuts import make_drive_seq, zip_cproduct
 
 
 def replay_demo_simplified_and_lif(
@@ -278,6 +278,202 @@ def replay_demo_simplified_and_lif(
     for ax in axs: plot.set_fontsize(ax, 16)
 
     return fig
+
+
+def record_connectivity_analysis(
+        SEED):
+    """
+    Analyze the dependence of replay probability on the percent match between
+    the stimulus transition matrix and network connectivity.
+    """
+    pass
+
+
+def capacity_and_connectivity_analysis(
+        SEED):
+    """
+    Show figures displaying dependence of stimulus-driven replay on stimulus-
+    connectivity match and sparsity.
+    """
+    pass
+
+
+def multiple_and_reverse_replay(
+        # simplified model parameters
+        SEED_SIMPLIFIED, NETWORK_SIZE, V_TH, G_W, G_X, T_X, RP,
+        # multiple replay simplified demo
+        SEQ_REF, SEQ_NONOVERLAP, SEQ_OVERLAP,
+        TRIGGER_START, TRIGGER_END,
+        TRIGGER_INTERVAL,
+        NODE_ORDER_MULTIPLE,
+        # reverse replay simplified demo
+        SEQ_REVS, NODE_ORDER_REVERSE,
+        # lif network
+        SEED_LIF, DT, OFFSET,
+        W_PP, W_MP, W_PM, W_MM, W_PI, W_IP,
+        TAU_P, TAU_M, TAU_I,
+        V_REST_P, V_REST_M, V_REST_I,
+        V_TH_P, V_TH_M, V_TH_I,
+        V_RESET_P, V_RESET_M, V_RESET_I,
+        RP_P, RP_M, RP_I,
+        TAUS_SYN, V_REVS_SYN,
+        SEQ_START, SEQ_DUR, SEQ_STAGGER, SEQ_FREQ, SEQ_AMP,
+        REPLAY_START, REPLAY_DUR, REPLAY_FREQ, REPLAY_AMP,
+        RESET_START, RESET_DUR, RESET_AMP, RESET_FREQ,
+        BKGD_GABA_AMP, BKGD_GABA_FREQ,
+        BKGD_GABA_AMP_MEM, BKGD_GABA_FREQ_MEM):
+    """
+    Show figures displaying replay of multiple sequences, priming, and
+    reverse replay.
+    """
+    fig = plt.figure(figsize=(15, 15), tight_layout=True)
+    gs = gridspec.GridSpec(6, 4)
+    np.random.seed(SEED_SIMPLIFIED)
+
+    # build simplified network
+    w, nodes = connectivity.hexagonal_lattice(NETWORK_SIZE)
+    ntwk = network.LocalWtaWithAthAndStdp(
+        th=V_TH, w=G_W*w, g_x=G_X, t_x=T_X, rp=RP,
+        stdp_params=None, wta_dist=2, wta_factor=1)
+    r_0 = np.zeros((len(nodes),))
+    xc_0 = np.zeros((len(nodes),))
+
+    # multiple sequence replay
+    # include enough steps to present all triggers, let hyperexcitability
+    # wear off, and then some
+    len_single_run = TRIGGER_END + len(SEQ_REF) + T_X + 5
+    n_steps = 2 * (len_single_run)
+
+    # build stimulus
+    drives = np.zeros((n_steps, len(nodes)))
+
+    for start, seq_2 in zip([1, len_single_run], [SEQ_NONOVERLAP, SEQ_OVERLAP]):
+
+        # reference sequence
+        drives += 2 * make_drive_seq(
+            seq=SEQ_REF, nodes=nodes, start=start, shape=drives.shape)
+
+        # nonoverlapping sequence
+        offset = len(SEQ_REF) + 2
+        drives += 2 * make_drive_seq(
+            seq=seq_2, nodes=nodes, start=start+offset, shape=drives.shape)
+
+        # triggers
+        trigger_seq = [SEQ_REF[0], seq_2[0]]
+
+        for t_ctr, t in enumerate(
+                start + np.arange(TRIGGER_START, TRIGGER_END, TRIGGER_INTERVAL)):
+            drives[t, nodes.index(trigger_seq[t_ctr % 2])] = 2
+
+    # run network
+    rs, _ = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives)
+
+    drive_times, drive_idxs = drives.nonzero()
+    spike_times, spike_idxs = rs.nonzero()
+
+    # plot results
+    axs = [fig.add_subplot(gs[ctr, :]) for ctr in range(2)]
+    nodes_reordered = plot.reorder_idxs(nodes, NODE_ORDER_MULTIPLE)
+    axs[0].scatter(drive_times, nodes_reordered[drive_idxs], lw=0, color='b')
+    axs[1].scatter(spike_times, nodes_reordered[spike_idxs], lw=0, color='k')
+
+    axs[0].set_title('stimulus (multiple replay)')
+    axs[1].set_title('network response (multiple replay)')
+    axs[1].set_xlabel('time (s)')
+
+    for ax in axs:
+        ax.set_xlim(-1, 1.1 * max(drive_times.max(), spike_times.max()))
+        ax.set_ylabel('node')
+        plot.set_fontsize(ax, 14)
+
+    # reverse replay
+    len_single_run = 2 * T_X
+
+    # build stimulus
+    drives = np.zeros((len(SEQ_REVS) * len_single_run, len(nodes)))
+    starts = 1 + np.arange(0, len(SEQ_REVS)*len_single_run, len_single_run)
+
+    for start, seq in zip(starts, SEQ_REVS):
+        drives += 2*make_drive_seq(
+            nodes=nodes, seq=seq, shape=drives.shape, start=start)
+
+        # add forward trigger
+        drives[start + len(seq) + 5, nodes.index(seq[0])] = 2
+        # add reverse trigger
+        drives[start + 2*(len(seq) + 5), nodes.index(seq[-1])] = 2
+
+    # run network
+    rs, _ = ntwk.run(r_0=r_0, xc_0=xc_0, drives=drives)
+
+    drive_times, drive_idxs = drives.nonzero()
+    spike_times, spike_idxs = rs.nonzero()
+
+    # plot results
+    axs = [fig.add_subplot(gs[ctr, :]) for ctr in range(2, 4)]
+    nodes_reordered = plot.reorder_idxs(nodes, NODE_ORDER_REVERSE)
+    axs[0].scatter(drive_times, nodes_reordered[drive_idxs], lw=0, color='b')
+    axs[1].scatter(spike_times, nodes_reordered[spike_idxs], lw=0, color='k')
+
+    axs[0].set_title('stimulus (reverse replay)')
+    axs[1].set_title('network response (reverse replay)')
+    axs[1].set_xlabel('time (s)')
+
+    for ax in axs:
+        ax.set_xlim(-1, 1.1 * max(drive_times.max(), spike_times.max()))
+        ax.set_ylabel('node')
+        plot.set_fontsize(ax, 14)
+
+    # LIF implementation
+    np.random.seed(SEED_LIF)
+
+    # build weight matrices
+    w_base = np.array([
+        [0, 0, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0],
+        [0, 0, 0, 1, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 1, 0],
+    ], dtype=float)
+
+    w_pp = W_PP * w_base
+    w_pm = W_PM * np.eye(7)
+    w_mm = W_MM * np.eye(7)
+    w_mp = W_MP * np.eye(7)
+    w_pi = W_PI * np.ones((7,))
+    w_ip = W_IP * np.ones((7,))
+
+    w_ampa = np.zeros((15, 15))
+    w_nmda = np.zeros((15, 15))
+    w_gaba = np.zeros((15, 15))
+
+    w_ampa[7:14, :7] = w_mp
+    w_ampa[-1, :7] = w_ip
+
+    w_nmda[:7, :7] = w_pp
+    w_nmda[:7, 7:14] = w_pm
+    w_nmda[7:14, 7:14] = w_mm
+
+    w_gaba[:7, -1] = w_pi
+
+    ws = {'ampa': w_ampa, 'nmda': w_nmda, 'gaba': w_gaba}
+
+    # build network
+    cc = np.concatenate
+    taus_m = cc([TAU_P * np.ones((7,)), TAU_M * np.ones((7,)), [TAU_I]])
+    v_rests = cc([V_REST_P * np.ones((7,)), V_REST_M * np.ones((7,)), [V_REST_I]])
+    v_ths = cc([V_TH_P * np.ones((7,)), V_TH_M * np.ones((7,)), [V_TH_I]])
+    v_resets = cc([V_RESET_P * np.ones((7,)), V_RESET_M * np.ones((7,)), [V_RESET_I]])
+    refrac_pers = cc([RP_P * np.ones((7,)), RP_M * np.ones((7,)), [RP_I]])
+
+    ntwk = network.LIFExponentialSynapsesModel(
+        taus_m=taus_m, v_rests=v_rests, v_ths=v_ths, v_resets=v_resets,
+        refrac_pers=refrac_pers, taus_syn=TAUS_SYN, v_revs_syn=V_REVS_SYN, ws=ws)
+
+    # build stimulus
+
+    # run network
 
 
 def record_extension_by_spontaneous_replay(
