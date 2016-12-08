@@ -153,7 +153,8 @@ class LIFExponentialSynapsesModel(object):
         """
         Run a simulation
 
-        :param initial_conditions: dict of initial voltages, conductances, and refractory periods
+        :param initial_conditions: dict of initial voltages, conductances, and
+            refractory periods
         :param drives: drives to each type of synapse at each neuron at each time point
         :param dt: integration time step
         :param record: tuple of variables to record, options are:
@@ -170,28 +171,23 @@ class LIFExponentialSynapsesModel(object):
         spikes = (vs > self.v_ths).astype(float)
 
         # allocate space for variables to be measured
-
         measurements = {}
 
         for variable in record:
 
             if variable != 'conductances':
                 measurements[variable] = np.zeros((n_steps + 1, self.n_cells))
-
             else:
-
                 measurements[variable] = {
                     key: np.zeros((n_steps + 1, self.n_cells))
                     for key in self.syns
                 }
 
         # record initial measurements
-
         self.record_measurements(measurements, record, 0,
             spikes, vs, rp_ctrs, gs)
 
         # run simulation
-
         for t_ctr in range(n_steps):
 
             # decrement nonzero refractory periods
@@ -204,10 +200,12 @@ class LIFExponentialSynapsesModel(object):
             gs = self.update_conductances(gs, self.taus_syn, self.ws, spikes, drive, dt)
 
             # calculate voltage change for all cells
-            vs = self.update_voltages(vs, self.taus_m, gs, self.v_revs_syn, self.v_rests, dt)
+            vs = self.update_voltages(
+                vs, self.taus_m, gs, self.v_revs_syn, self.v_rests, dt)
 
             # set voltage of refractory neurons to reset potential
-            vs[rp_ctrs > 0] = self.v_resets[rp_ctrs > 0]
+            rp_mask = (rp_ctrs > 0) * (vs > self.v_resets)
+            vs[rp_mask] = self.v_resets[rp_mask]
 
             # detect spikes, reset voltages, and set refractory periods
             spikes = vs > self.v_ths
