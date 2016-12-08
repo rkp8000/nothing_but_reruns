@@ -326,12 +326,14 @@ def multiple_and_reverse_replay(
     Show figures displaying replay of multiple sequences, priming, and
     reverse replay.
     """
-    fig = plt.figure(figsize=(15, 20), tight_layout=True)
-    gs = gridspec.GridSpec(8, 4)
+    fig = plt.figure(figsize=(15, 27), tight_layout=True)
+    gs = gridspec.GridSpec(11, 4)
     np.random.seed(SEED_SIMPLIFIED)
 
     # build simplified network
     w, nodes = connectivity.hexagonal_lattice(NETWORK_SIZE)
+    nodes, idxs = reorder_idxs(nodes, NODE_ORDER_MULTIPLE)
+    w = w[idxs, :][:, idxs]
     ntwk = network.LocalWtaWithAthAndStdp(
         th=V_TH, w=G_W*w, g_x=G_X, t_x=T_X, rp=RP,
         stdp_params=None, wta_dist=2, wta_factor=1)
@@ -373,9 +375,8 @@ def multiple_and_reverse_replay(
 
     # plot results
     axs = [fig.add_subplot(gs[ctr, :]) for ctr in range(2)]
-    nodes_reordered = reorder_idxs(nodes, NODE_ORDER_MULTIPLE)[1]
-    axs[0].scatter(drive_times, nodes_reordered[drive_idxs], lw=0, color='b')
-    axs[1].scatter(spike_times, nodes_reordered[spike_idxs], lw=0, color='k')
+    axs[0].scatter(drive_times, drive_idxs, lw=0, color='b')
+    axs[1].scatter(spike_times, spike_idxs, lw=0, color='k')
 
     axs[0].set_title('stimulus (multiple replay)')
     axs[1].set_title('network response (multiple replay)')
@@ -387,6 +388,15 @@ def multiple_and_reverse_replay(
         plot.set_fontsize(ax, 14)
 
     # reverse replay
+    w, nodes = connectivity.hexagonal_lattice(NETWORK_SIZE)
+    nodes, idxs = reorder_idxs(nodes, NODE_ORDER_REVERSE)
+    w = w[idxs, :][:, idxs]
+    ntwk = network.LocalWtaWithAthAndStdp(
+        th=V_TH, w=G_W*w, g_x=G_X, t_x=T_X, rp=RP,
+        stdp_params=None, wta_dist=2, wta_factor=1)
+    r_0 = np.zeros((len(nodes),))
+    xc_0 = np.zeros((len(nodes),))
+
     len_single_run = 2 * T_X
 
     # build stimulus
@@ -480,8 +490,7 @@ def multiple_and_reverse_replay(
     seq_dur = int(SEQ_DUR/dt)
     seq_stagger = int(SEQ_STAGGER/dt)
 
-    replay_start_for = int(REPLAY_START_FOR/dt)
-    replay_start_rev = int(REPLAY_START_REV/dt)
+    replay_starts = [int(REPLAY_START_FOR/dt), int(REPLAY_START_REV/dt)]
     replay_dur = int(REPLAY_DUR/dt)
 
     offsets = [0, int(OFFSET/dt)]
@@ -500,13 +509,14 @@ def multiple_and_reverse_replay(
             drives['ampa'][start:end, node_idx] = inputs
 
         ## replay triggers
-        for replay_start in [replay_start_for, replay_start_rev]:
+        triggers = [seq_order[0], seq_order[-1]]
+        for replay_start, trigger in zip(replay_starts, triggers):
             start = offset + replay_start
             end = start + replay_dur
             inputs = REPLAY_AMP * \
                 (np.random.rand(end-start) < (REPLAY_FREQ*dt)).astype(float)
 
-            drives['ampa'][start:end, seq_order[0]] = inputs
+            drives['ampa'][start:end, trigger] = inputs
 
         # inhibitory drives
         ## reset
@@ -545,7 +555,7 @@ def multiple_and_reverse_replay(
 
     # make plots
     axs = [fig.add_subplot(gs[ctr:ctr+2, :]) for ctr in [4, 6]]
-    nodes_reordered = reorder_idxs(nodes, NODE_ORDER_REVERSE)
+    axs.append(fig.add_subplot(gs[8:, :]))
     marker_size = 15
 
     handles = []
@@ -584,12 +594,43 @@ def multiple_and_reverse_replay(
 
     axs[1].scatter(spike_times, spike_idxs, marker='|', s=marker_size, c='r')
 
+    axs[0].set_xlim(0, dt*n_steps)
+    axs[1].set_xlim(0, dt*n_steps)
+
     for ax in axs:
         ax.set_ylabel('neuron')
 
     axs[0].set_title('stimulus')
     axs[1].set_title('spikes')
     axs[1].set_xlabel('time (s)')
+
+    # DEBUGGING: plot voltage of first three neurons in first sequence
+    ts = np.arange(len(measurements['voltages'])) * dt
+    y_ticks = []
+    y_tick_labels = []
+
+    for ctr, node in enumerate(SEQ_REVS[0][:5] + [(-3, -1)]):
+        offset = -.05 * ctr  # 50 mV spacing on plot between traces
+        axs[2].axhline(offset + V_REVS_SYN['gaba'], color='gray', ls='--')
+        axs[2].axhline(offset + V_TH_P, color='gray', ls='--')
+        axs[2].axhline(offset + V_RESET_P, color='r', ls='--')
+
+        vs = measurements['voltages'][:, nodes.index(node)]
+        spike_times = dt*measurements['spikes'][:, nodes.index(node)].nonzero()[0]
+        axs[2].plot(ts, offset + vs, color='k')
+
+        axs[2].scatter(
+            spike_times, (offset+V_TH_P) * np.ones(spike_times.shape),
+            c='k', s=50, lw=0, zorder=100)
+
+        y_ticks.append(offset + .5 * (V_RESET_P + V_TH_P))
+        y_tick_labels.append('node {}'.format(node))
+
+    axs[2].set_xlim(1.95, 2.2)
+    axs[2].set_yticks(y_ticks)
+    axs[2].set_yticklabels(y_tick_labels)
+
+    axs[2].set_xlabel('time (s)')
 
     for ax in axs: plot.set_fontsize(ax, 16)
 
