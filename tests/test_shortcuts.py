@@ -1,6 +1,21 @@
 from __future__ import division, print_function
 
 
+def test_reorder_indexes_works_on_examples():
+    from shortcuts import reorder_idxs
+
+    original = [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6)]
+    first = [(6, 6), (2, 2), (1, 1)]
+
+    reordered_correct = [(6, 6), (2, 2), (1, 1), (0, 0), (3, 3), (4, 4), (5, 5)]
+    idxs_correct = [6, 2, 1, 0, 3, 4, 5]
+
+    reordered, idxs = reorder_idxs(original, first)
+
+    assert reordered == reordered_correct
+    assert idxs == idxs_correct
+
+
 def test_zip_cproduct_works_on_examples():
     from shortcuts import zip_cproduct
 
