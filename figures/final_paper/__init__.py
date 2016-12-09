@@ -774,7 +774,7 @@ def multiple_and_reverse_replay(
         y_ticks.append(offset + .5 * (V_RESET_P + V_TH_P))
         y_tick_labels.append('node {}'.format(node))
 
-    axs[2].set_xlim(1.75, 2.2)
+    axs[2].set_xlim(1.5, 2.5)
     axs[2].set_yticks(y_ticks)
     axs[2].set_yticklabels(y_tick_labels)
 
