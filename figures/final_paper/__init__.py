@@ -301,8 +301,7 @@ def record_connectivity_analysis(
 
         for trial_ctr in range(N_TRIALS):
 
-            if (trial_ctr + 1) % 10 == 0:
-                logging.info('{} trials completed.'.format(trial_ctr + 1))
+            logging.info('Trial {} started.'.format(trial_ctr + 1))
 
             # generate random stimulus transition matrix
             while True:
@@ -355,11 +354,11 @@ def record_connectivity_analysis(
 
         car = _models.ConnectivityAnalysisResult(
             group=GROUP,
-            n=N, l=l, q=Q,
+            n=N, l=l, q=q,
             match_percents=MATCH_PERCENTS,
             n_trials=N_TRIALS, n_stim_seqs=N_STIM_SEQS,
             v_th=V_TH, g_w=G_W, g_x=G_X, rp=RP,
-            replay_probs=replay_probs)
+            replay_probs=replay_probs.tolist())
 
         session.add(car)
         session.commit()
@@ -472,8 +471,7 @@ def multiple_and_reverse_replay(
         SEQ_START, SEQ_DUR, SEQ_STAGGER, SEQ_FREQ, SEQ_AMP,
         REPLAY_START_FOR, REPLAY_START_REV, REPLAY_DUR, REPLAY_FREQ, REPLAY_AMP,
         RESET_START, RESET_DUR, RESET_AMP, RESET_FREQ,
-        BKGD_GABA_AMP, BKGD_GABA_FREQ,
-        BKGD_GABA_AMP_MEM, BKGD_GABA_FREQ_MEM):
+        BKGD_GABAS):
     """
     Show figures displaying replay of multiple sequences, priming, and
     reverse replay.
@@ -658,7 +656,8 @@ def multiple_and_reverse_replay(
             inputs = SEQ_AMP * \
                 (np.random.rand(end-start) < (SEQ_FREQ*dt)).astype(float)
 
-            drives['ampa'][start:end, node_idx] = inputs
+            # DEBUGGING (remove "+n" to return to original)
+            drives['ampa'][start:end, node_idx+n] = inputs
 
         ## replay triggers
         triggers = [seq_order[0], seq_order[-1]]
@@ -679,19 +678,16 @@ def multiple_and_reverse_replay(
 
         drives['gaba'][start:end, n:2*n] = inputs
 
-        ## background during initial sequence presentation
-        start = offset
-        end = offset + seq_start + seq_stagger * (len(seq_order) - 1) + \
-              seq_dur + int(0.2/dt)
-        inputs = BKGD_GABA_AMP * \
-            (np.random.rand(end-start, n) < (BKGD_GABA_FREQ*dt)).astype(float)
+        ## background gaba
+        for bkgd_gaba in BKGD_GABAS:
+            start = offset + int(bkgd_gaba['start']/dt)
+            end = offset + int(bkgd_gaba['end']/dt)
 
-        drives['gaba'][start:end, :n] = inputs
+            amp = bkgd_gaba['amp']
+            freq = bkgd_gaba['freq']
+            inputs = amp * (np.random.rand(end-start, n) < (freq*dt)).astype(float)
 
-    # inhibitory background to memory units
-    drives['gaba'][:, n:2*n] += BKGD_GABA_AMP_MEM * \
-        (np.random.rand(len(drives['gaba']), n) < (BKGD_GABA_FREQ_MEM*dt)).\
-        astype(float)
+            drives['gaba'][start:end, :n] = inputs
 
     # set initial network conditions
     initial_conditions = {
