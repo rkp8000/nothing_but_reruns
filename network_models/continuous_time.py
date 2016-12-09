@@ -85,14 +85,15 @@ class LIFExponentialSynapsesModel(object):
         Update conductances according to exponential ODE.
         """
 
+        gs_new = {}
         for syn in gs.keys():
 
             g, tau, w, drive = gs[syn], taus[syn], ws[syn], drives[syn]
             dg = (dt / tau) * (-g + (w.dot(spikes) + drive) * tau / dt)
 
-            gs[syn] += dg
+            gs_new[syn] = g + dg
 
-        return gs
+        return gs_new
 
     @staticmethod
     def update_voltages(vs, taus_m, gs, v_revs, v_rests, dt):
@@ -100,7 +101,13 @@ class LIFExponentialSynapsesModel(object):
         Update voltages according to exponential ODE.
         """
 
-        inputs = np.array([g * (v_revs[syn] - vs) for syn, g in gs.items()])
+        inputs = []
+        for syn, g in gs.items():
+
+            temp = v_revs[syn] - vs
+            inputs.append(g * temp)
+        inputs = np.array(inputs)
+
         dv = (dt / taus_m) * (v_rests - vs + inputs.sum(0))
 
         return vs + dv
@@ -148,6 +155,11 @@ class LIFExponentialSynapsesModel(object):
 
         # allow refractory period to be specified for individual cells or not
         self.refrac_pers = np.array(refrac_pers)
+
+        self.v_mins = np.array([
+            np.min([v_rest, v_reset, np.min(v_revs_syn.values())])
+            for v_rest, v_reset in zip(v_rests, v_resets)
+        ])
 
     def run(self, initial_conditions, drives, dt, record=('spikes')):
         """
@@ -213,6 +225,7 @@ class LIFExponentialSynapsesModel(object):
             rp_ctrs[spikes] = self.refrac_pers[spikes] // dt
             spikes = spikes.astype(float)
 
+            vs[vs < self.v_mins] = self.v_mins[vs < self.v_mins]
             # record desired variables
 
             self.record_measurements(measurements, record, t_ctr + 1,
