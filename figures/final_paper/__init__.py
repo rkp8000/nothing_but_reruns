@@ -656,8 +656,7 @@ def multiple_and_reverse_replay(
             inputs = SEQ_AMP * \
                 (np.random.rand(end-start) < (SEQ_FREQ*dt)).astype(float)
 
-            # DEBUGGING (remove "+n" to return to original)
-            drives['ampa'][start:end, node_idx+n] = inputs
+            drives['ampa'][start:end, node_idx] = inputs
 
         ## replay triggers
         triggers = [seq_order[0], seq_order[-1]]
@@ -757,7 +756,7 @@ def multiple_and_reverse_replay(
     y_ticks = []
     y_tick_labels = []
 
-    for ctr, node in enumerate(SEQ_REVS[0][:6] + [(-3, -1)]):
+    for ctr, node in enumerate(SEQ_REVS[0][:6] + [(-2, 0)]):
         offset = -.05 * ctr  # 50 mV spacing on plot between traces
         axs[2].axhline(offset + V_REVS_SYN['gaba'], color='gray', ls='--')
         axs[2].axhline(offset + V_TH_P, color='gray', ls='--')
