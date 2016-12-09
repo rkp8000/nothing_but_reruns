@@ -12,6 +12,7 @@ import db
 import network
 import plot
 from shortcuts import make_drive_seq, zip_cproduct, reorder_idxs
+from shortcuts import get_stationary_distribution, sample_markov_chain
 
 
 def replay_demo_simplified_and_lif(
@@ -281,21 +282,172 @@ def replay_demo_simplified_and_lif(
 
 
 def record_connectivity_analysis(
-        SEED):
+        SEED, GROUP, LOG_FILE,
+        V_TH, G_W, G_X, RP,
+        N, LS, QS, MATCH_PERCENTS, N_TRIALS, N_STIM_SEQS):
     """
     Analyze the dependence of replay probability on the percent match between
     the stimulus transition matrix and network connectivity.
     """
-    pass
+    # preliminaries
+    session = db.connect_and_make_session('nothing_but_reruns')
+    db.prepare_logging(LOG_FILE)
+    np.random.seed(SEED)
+
+    for l, q in cproduct(LS, QS):
+
+        logging.info('Running sim. for L = {}, Q = {}'.format(l, q))
+        replay_probs = np.nan * np.zeros((N_TRIALS, len(MATCH_PERCENTS)))
+
+        for trial_ctr in range(N_TRIALS):
+
+            if (trial_ctr + 1) % 10 == 0:
+                logging.info('{} trials completed.'.format(trial_ctr + 1))
+
+            # generate random stimulus transition matrix
+            while True:
+                trs = (np.random.rand(N, N) < q).astype(float)
+                np.fill_diagonal(trs, 0)
+                if np.all(trs.sum(axis=0) > 0): break
+
+            w_stim = trs.copy()
+
+            # normalize all columns to 1 to make it probabilistic
+            for col_ctr in range(N):
+                trs[:, col_ctr] /= trs[:, col_ctr].sum()
+
+            p_0 = get_stationary_distribution(trs)
+
+            # loop over match percentages
+            w_rand = (np.random.rand(N, N) < q).astype(float)
+
+            for mp_ctr, mp in enumerate(MATCH_PERCENTS):
+
+                w = w_rand.copy()
+                mask = np.random.rand(*w.shape) < mp
+                w[mask] = w_stim[mask]
+                w *= G_W
+
+                # make network
+                ntwk = network.BasicWithAthAndTwoLevelStdp(
+                    th=V_TH, w=w, g_x=G_X, t_x=2 * l, rp=RP, stdp_params=None)
+
+                correct_ctr = 0
+
+                for _ in range(N_STIM_SEQS):
+
+                    drives = np.zeros((2 * l + 2, N))
+                    seq = sample_markov_chain(p_0, trs, l)
+                    for ctr, node in enumerate(seq):
+
+                        drives[ctr + 1, node] = 1
+
+                    drives[l + 2, seq[0]] = 1
+
+                    r_0 = np.zeros((N,))
+                    xc_0 = np.zeros((N,))
+
+                    rs, _ = ntwk.run(r_0, xc_0, 5*drives)
+
+                    if np.all(rs[l+2:2*l+2, :] == drives[1:l+1, :]): correct_ctr += 1
+
+                replay_probs[trial_ctr, mp_ctr] = correct_ctr / N_STIM_SEQS
+
+        car = _models.ConnectivityAnalysisResult(
+            group=GROUP,
+            n=N, l=l, q=Q,
+            match_percents=MATCH_PERCENTS,
+            n_trials=N_TRIALS, n_stim_seqs=N_STIM_SEQS,
+            v_th=V_TH, g_w=G_W, g_x=G_X, rp=RP,
+            replay_probs=replay_probs)
+
+        session.add(car)
+        session.commit()
+    session.close()
 
 
 def capacity_and_connectivity_analysis(
-        SEED):
+        GROUP, QS_MATCH_ANALYSIS,
+        LS, QS_DENSITY, QS_MEMORY_CONTENT, NS_MEMORY_CONTENT):
     """
-    Show figures displaying dependence of stimulus-driven replay on stimulus-
-    connectivity match and sparsity.
+    Show replay statistics:
+        Relative capacity vs. density for ER networks.
+        Optimal density vs. L.
+        Replay probability vs. percent stimulus-matched transitions.
+        Guaranteed replay probability and memory content vs. sparsity.
     """
-    pass
+    session = db.connect_and_make_session('nothing_but_reruns')
+
+    fig = plt.figure(figsize=(10, 4), tight_layout=True)
+    axs = [fig.add_subplot(1, 3, 1)]
+    axs.append(fig.add_subplot(1, 3, 2, sharey=axs[0]))
+    axs.append(fig.add_subplot(1, 3, 3))
+
+    styles = ['-', '--', '-.']
+
+    # plot replay probability vs. stimulus-matched connectivity percentage
+    handles = []
+    for q, style in zip(QS_MATCH_ANALYSIS, styles):
+
+        cars = session.query(_models.ConnectivityAnalysisResult).filter(
+            _models.ConnectivityAnalysisResult.group == GROUP,
+            _models.ConnectivityAnalysisResult.q.between(.99 * q, 1.01*q))
+
+        ls = sorted(np.unique([car.l for car in cars.all()]))
+        colors = get_n_colors(len(ls) + 1, 'hsv')[:-1]
+
+        for l, color in zip(ls, colors):
+
+            car = cars.filter(_models.ConnectivityAnalysisResult.l == l).first()
+            replay_probs = np.array(car.replay_probs)
+
+            mean = np.mean(replay_probs, axis=0)
+            sem = stats.sem(replay_probs, axis=0)
+            handles.append(axs[0].plot(
+                match_percentages, mean, color=color, lw=2, ls=style,
+                label='L = {}'.format(l), zorder=1)[0])
+            axs[0].fill_between(
+                match_percentages, mean-sem, mean+sem,
+                color=color, zorder=0, alpha=0.2)
+
+            axs[0].set_xticks([0, .2, .4, .6, .8, 1])
+            axs[0].set_xticklabels(['0', '.2', '.4', '.6', '.8', '1'])
+
+            axs[0].set_xlim(0, 1)
+            axs[0].set_ylim(0, 1.1)
+            axs[0].set_xlabel('match proportion')
+            axs[0].set_ylabel('p(correct replay)')
+            axs[0].legend(handles=handles, loc='best')
+
+    # plot replay probability and memory content
+    colors = get_n_colors(len(ls) + 1, 'hsv')[:-1]
+    for l, color in zip(LS, colors):
+
+        guaranteed_replay_probability = \
+            (1 - QS) ** ((l - 1) * (l - 2))
+
+        axs[1].semilogx(QS_DENSITY, guaranteed_replay_probability, color=color, lw=2)
+
+        for q, ls in zip(QS_MEMORY_CONTENT, styles):
+
+            memory_content = []
+            for n in NS_MEMORY_CONTENT:
+
+                memory_content.append(np.prod(n - np.arange(1, l)) * (q ** (l-1)))
+
+            memory_content = np.array(memory_content)
+            memory_content[memory_content < 1] = np.nan
+
+            axs[2].loglog(NS_MEMORY_CONTENT, memory_content, color=color, ls=ls, lw=2)
+
+    axs[1].set_xlabel('density')
+    axs[2].set_xlabel('N')
+    axs[2].set_ylabel('memory content')
+    axs[2].set_yticks(axs[2].get_yticks()[::4])
+
+    for ax in axs: set_fontsize(ax, 14)
+
+    return fig
 
 
 def multiple_and_reverse_replay(
@@ -609,7 +761,7 @@ def multiple_and_reverse_replay(
     y_ticks = []
     y_tick_labels = []
 
-    for ctr, node in enumerate(SEQ_REVS[0][:5] + [(-3, -1)]):
+    for ctr, node in enumerate(SEQ_REVS[0][:6] + [(-3, -1)]):
         offset = -.05 * ctr  # 50 mV spacing on plot between traces
         axs[2].axhline(offset + V_REVS_SYN['gaba'], color='gray', ls='--')
         axs[2].axhline(offset + V_TH_P, color='gray', ls='--')
@@ -626,7 +778,7 @@ def multiple_and_reverse_replay(
         y_ticks.append(offset + .5 * (V_RESET_P + V_TH_P))
         y_tick_labels.append('node {}'.format(node))
 
-    axs[2].set_xlim(1.95, 2.2)
+    axs[2].set_xlim(1.75, 2.2)
     axs[2].set_yticks(y_ticks)
     axs[2].set_yticklabels(y_tick_labels)
 
