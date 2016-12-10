@@ -265,7 +265,7 @@ def replay_demo_simplified_and_lif(
 
     axs[1].scatter(spike_times, spike_idxs, marker='|', s=marker_size, c='r')
 
-    for ax in axs:
+    for ax in axs[:2]:
         ax.set_xlim(0, 8)
         ax.set_ylim(-1, 21)
         ax.set_yticks([0, 4, 7, 10, 14, 17, 20])
@@ -275,6 +275,29 @@ def replay_demo_simplified_and_lif(
     axs[0].set_title('stimulus')
     axs[1].set_title('spikes')
     axs[1].set_xlabel('time (s)')
+
+    # plot voltage traces
+    ts = measurements['time']
+    v_3 = measurements['voltages'][:, 2]
+    v_4 = measurements['voltages'][:, 3]
+    v_6 = measurements['voltages'][:, 5]
+    s_3 = measurements['spikes'][:, 2].nonzero()[0] * dt
+    s_4 = measurements['spikes'][:, 3].nonzero()[0] * dt
+    s_6 = measurements['spikes'][:, 5].nonzero()[0] * dt
+
+    axs[2].plot(ts, v_3, color='k', lw=2, zorder=0)
+    axs[2].plot(ts, v_4, color='r', lw=2, zorder=0)
+    axs[2].plot(ts, v_6, color='c', lw=2, zorder=0)
+
+    for s, c in zip([s_3, s_4, s_6], ['k', 'r', 'c']):
+        ys = V_TH_P * np.ones((len(s),))
+        axs[2].scatter(s, ys, s=50, c=c, lw=0, zorder=2)
+
+    axs[2].axhline(V_TH_P, color='gray', ls='--', zorder=-1)
+
+    axs[2].set_xlim(2.05, 2.12)
+    axs[2].set_xlabel('time (s)')
+    axs[2].set_ylabel('voltage (V)')
 
     for ax in axs: plot.set_fontsize(ax, 16)
 
@@ -377,7 +400,7 @@ def capacity_and_connectivity_analysis(
     """
     session = db.connect_and_make_session('nothing_but_reruns')
 
-    fig = plt.figure(figsize=(10, 4), tight_layout=True)
+    fig = plt.figure(figsize=(15, 5), tight_layout=True)
     axs = [fig.add_subplot(1, 3, 1)]
     axs.append(fig.add_subplot(1, 3, 2, sharey=axs[0]))
     axs.append(fig.add_subplot(1, 3, 3))
@@ -451,34 +474,21 @@ def capacity_and_connectivity_analysis(
 
 def multiple_and_reverse_replay(
         # simplified model parameters
-        SEED_SIMPLIFIED, NETWORK_SIZE, V_TH, G_W, G_X, T_X, RP,
+        SEED, NETWORK_SIZE, V_TH, G_W, G_X, T_X, RP,
         # multiple replay simplified demo
         SEQ_REF, SEQ_NONOVERLAP, SEQ_OVERLAP,
         TRIGGER_START, TRIGGER_END,
         TRIGGER_INTERVAL,
         NODE_ORDER_MULTIPLE,
         # reverse replay simplified demo
-        SEQ_REVS, NODE_ORDER_REVERSE,
-        # lif network
-        SEED_LIF, NETWORK_SIZE_LIF, DT, OFFSET,
-        W_PP, W_MP, W_PM, W_MM, W_PI, W_IP,
-        TAU_P, TAU_M, TAU_I,
-        V_REST_P, V_REST_M, V_REST_I,
-        V_TH_P, V_TH_M, V_TH_I,
-        V_RESET_P, V_RESET_M, V_RESET_I,
-        RP_P, RP_M, RP_I,
-        TAUS_SYN, V_REVS_SYN,
-        SEQ_START, SEQ_DUR, SEQ_STAGGER, SEQ_FREQ, SEQ_AMP,
-        REPLAY_START_FOR, REPLAY_START_REV, REPLAY_DUR, REPLAY_FREQ, REPLAY_AMP,
-        RESET_START, RESET_DUR, RESET_AMP, RESET_FREQ,
-        BKGD_GABAS):
+        SEQ_REVS, NODE_ORDER_REVERSE):
     """
     Show figures displaying replay of multiple sequences, priming, and
     reverse replay.
     """
-    fig = plt.figure(figsize=(15, 27), tight_layout=True)
-    gs = gridspec.GridSpec(11, 4)
-    np.random.seed(SEED_SIMPLIFIED)
+    fig = plt.figure(figsize=(15, 10), tight_layout=True)
+    gs = gridspec.GridSpec(4, 4)
+    np.random.seed(SEED)
 
     # build simplified network
     w, nodes = connectivity.hexagonal_lattice(NETWORK_SIZE)
@@ -583,203 +593,6 @@ def multiple_and_reverse_replay(
         ax.set_xlim(-1, 1.1 * max(drive_times.max(), spike_times.max()))
         ax.set_ylabel('node')
         plot.set_fontsize(ax, 14)
-
-    # LIF implementation
-    np.random.seed(SEED_LIF)
-
-    # build weight matrices
-    w_base, nodes = connectivity.hexagonal_lattice(NETWORK_SIZE_LIF)
-    # reorder nodes for nicer graphical presentation
-    nodes, idxs = reorder_idxs(nodes, NODE_ORDER_REVERSE)
-    w_base = w_base[idxs, :][:, idxs]
-
-    n = len(nodes)
-
-    w_pp = W_PP * w_base
-    w_pm = W_PM * np.eye(n)
-    w_mm = W_MM * np.eye(n)
-    w_mp = W_MP * np.eye(n)
-    w_pi = W_PI * np.ones((n,))
-    w_ip = W_IP * np.ones((n,))
-
-    w_ampa = np.zeros((2*n+1, 2*n+1))
-    w_nmda = np.zeros((2*n+1, 2*n+1))
-    w_gaba = np.zeros((2*n+1, 2*n+1))
-
-    w_ampa[n:2*n, :n] = w_mp
-    w_ampa[-1, :n] = w_ip
-
-    w_nmda[:n, :n] = w_pp
-    w_nmda[:n, n:2*n] = w_pm
-    w_nmda[n:2*n, n:2*n] = w_mm
-
-    w_gaba[:n, -1] = w_pi
-
-    ws = {'ampa': w_ampa, 'nmda': w_nmda, 'gaba': w_gaba}
-
-    # build network
-    cc = np.concatenate
-    taus_m = cc([TAU_P * np.ones((n,)), TAU_M * np.ones((n,)), [TAU_I]])
-    v_rests = cc([V_REST_P * np.ones((n,)), V_REST_M * np.ones((n,)), [V_REST_I]])
-    v_ths = cc([V_TH_P * np.ones((n,)), V_TH_M * np.ones((n,)), [V_TH_I]])
-    v_resets = cc([V_RESET_P * np.ones((n,)), V_RESET_M * np.ones((n,)), [V_RESET_I]])
-    refrac_pers = cc([RP_P * np.ones((n,)), RP_M * np.ones((n,)), [RP_I]])
-
-    ntwk = network.LIFExponentialSynapsesModel(
-        taus_m=taus_m, v_rests=v_rests, v_ths=v_ths, v_resets=v_resets,
-        refrac_pers=refrac_pers, taus_syn=TAUS_SYN, v_revs_syn=V_REVS_SYN, ws=ws)
-
-    # build stimulus
-    dt = DT
-    dur = 2*OFFSET
-    n_steps = int(dur/dt)
-
-    drives = {syn: np.zeros((n_steps, 2*n+1)) for syn in ws.keys()}
-
-    seq_start = int(SEQ_START/dt)
-    seq_dur = int(SEQ_DUR/dt)
-    seq_stagger = int(SEQ_STAGGER/dt)
-
-    replay_starts = [int(REPLAY_START_FOR/dt), int(REPLAY_START_REV/dt)]
-    replay_dur = int(REPLAY_DUR/dt)
-
-    offsets = [0, int(OFFSET/dt)]
-    seq_orders = [[nodes.index(node) for node in seq] for seq in SEQ_REVS]
-
-    for offset, seq_order in zip(offsets, seq_orders):
-        # excitatory drives
-
-        ## initial sequence
-        for ctr, node_idx in enumerate(seq_order):
-            start = offset + seq_start + seq_stagger*ctr
-            end = start + seq_dur
-            inputs = SEQ_AMP * \
-                (np.random.rand(end-start) < (SEQ_FREQ*dt)).astype(float)
-
-            drives['ampa'][start:end, node_idx] = inputs
-
-        ## replay triggers
-        triggers = [seq_order[0], seq_order[-1]]
-        for replay_start, trigger in zip(replay_starts, triggers):
-            start = offset + replay_start
-            end = start + replay_dur
-            inputs = REPLAY_AMP * \
-                (np.random.rand(end-start) < (REPLAY_FREQ*dt)).astype(float)
-
-            drives['ampa'][start:end, trigger] = inputs
-
-        # inhibitory drives
-        ## reset
-        start = offset + int(RESET_START/dt)
-        end = start + int(RESET_DUR/dt)
-        inputs = RESET_AMP * \
-            (np.random.rand(end-start, n) < (RESET_FREQ*dt)).astype(float)
-
-        drives['gaba'][start:end, n:2*n] = inputs
-
-        ## background gaba
-        for bkgd_gaba in BKGD_GABAS:
-            start = offset + int(bkgd_gaba['start']/dt)
-            end = offset + int(bkgd_gaba['end']/dt)
-
-            amp = bkgd_gaba['amp']
-            freq = bkgd_gaba['freq']
-            inputs = amp * (np.random.rand(end-start, n) < (freq*dt)).astype(float)
-
-            drives['gaba'][start:end, :n] = inputs
-
-    # set initial network conditions
-    initial_conditions = {
-        'voltages': v_rests,
-        'conductances': {syn: np.zeros((2*n+1,)) for syn in ws.keys()},
-        'refrac_ctrs': np.zeros((2*n+1,)),
-    }
-
-    # run network
-    measurements = ntwk.run(
-        initial_conditions=initial_conditions, drives=drives, dt=dt,
-        record=('voltages', 'spikes'))
-
-    # make plots
-    axs = [fig.add_subplot(gs[ctr:ctr+2, :]) for ctr in [4, 6]]
-    axs.append(fig.add_subplot(gs[8:, :]))
-    marker_size = 15
-
-    handles = []
-
-    # plot ampa drives to primary neurons
-    drive_times, drive_idxs = drives['ampa'][:, :n].nonzero()
-    drive_times = dt * drive_times.astype(float)
-
-    handles.append(axs[0].scatter(
-        drive_times, drive_idxs + 2*n,
-        marker='|', s=marker_size, lw=1.5, c='b', label='AMPA'))
-
-    # plot gaba drives to memory neurons
-    drive_times, drive_idxs = drives['gaba'][:, n:2*n].nonzero()
-    drive_times = dt * drive_times.astype(float)
-
-    handles.append(axs[0].scatter(
-        drive_times, drive_idxs + 4, marker='|', s=marker_size, c='r', label='NMDA'))
-
-    # plot primary spikes
-    spike_times, spike_idxs = measurements['spikes'][:, :n].nonzero()
-    spike_times = dt * spike_times.astype(float)
-
-    axs[1].scatter(
-        spike_times, spike_idxs + 2*n, marker='|', lw=1.3, s=marker_size, c='k')
-
-    # plot memory spikes
-    spike_times, spike_idxs = measurements['spikes'][:, n:2*n].nonzero()
-    spike_times = dt * spike_times.astype(float)
-
-    axs[1].scatter(spike_times, spike_idxs + 4, marker='|', s=marker_size, c='g')
-
-    # plot inhibitory spikes
-    spike_times, spike_idxs = measurements['spikes'][:, [2*n]].nonzero()
-    spike_times = dt * spike_times.astype(float)
-
-    axs[1].scatter(spike_times, spike_idxs, marker='|', s=marker_size, c='r')
-
-    axs[0].set_xlim(0, dt*n_steps)
-    axs[1].set_xlim(0, dt*n_steps)
-
-    for ax in axs:
-        ax.set_ylabel('neuron')
-
-    axs[0].set_title('stimulus')
-    axs[1].set_title('spikes')
-    axs[1].set_xlabel('time (s)')
-
-    # DEBUGGING: plot voltage of first three neurons in first sequence
-    ts = np.arange(len(measurements['voltages'])) * dt
-    y_ticks = []
-    y_tick_labels = []
-
-    for ctr, node in enumerate(SEQ_REVS[0][:6] + [(-2, 0)]):
-        offset = -.05 * ctr  # 50 mV spacing on plot between traces
-        axs[2].axhline(offset + V_REVS_SYN['gaba'], color='gray', ls='--')
-        axs[2].axhline(offset + V_TH_P, color='gray', ls='--')
-        axs[2].axhline(offset + V_RESET_P, color='r', ls='--')
-
-        vs = measurements['voltages'][:, nodes.index(node)]
-        spike_times = dt*measurements['spikes'][:, nodes.index(node)].nonzero()[0]
-        axs[2].plot(ts, offset + vs, color='k')
-
-        axs[2].scatter(
-            spike_times, (offset+V_TH_P) * np.ones(spike_times.shape),
-            c='k', s=50, lw=0, zorder=100)
-
-        y_ticks.append(offset + .5 * (V_RESET_P + V_TH_P))
-        y_tick_labels.append('node {}'.format(node))
-
-    axs[2].set_xlim(1.5, 2.5)
-    axs[2].set_yticks(y_ticks)
-    axs[2].set_yticklabels(y_tick_labels)
-
-    axs[2].set_xlabel('time (s)')
-
-    for ax in axs: plot.set_fontsize(ax, 16)
 
     return fig
 
@@ -1012,10 +825,7 @@ def extension_by_spontaneous_replay(
     # show driving stimulus
     d_times, d_nodes = drives_base.nonzero()
 
-    ax_drive.scatter(d_times, d_nodes, s=25, lw=0)
-
-    ax_drive.axvspan(0.5, len(node_seq) + 0.5, color='r', alpha=0.15)
-    ax_drive.axvspan(probe_time - 0.5, probe_time + 0.5, color='r', alpha=0.15)
+    ax_drive.scatter(d_times, d_nodes, s=25, c='b', lw=0)
 
     ax_drive.set_xlabel('time step')
     ax_drive.set_ylabel('node')
@@ -1030,10 +840,7 @@ def extension_by_spontaneous_replay(
 
         r_times, r_nodes = rs.nonzero()
 
-        ax.scatter(r_times, r_nodes, s=25, lw=0)
-
-        ax.axvspan(0.5, len(node_seq) + 0.5, color='r', alpha=0.15)
-        ax.axvspan(probe_time - 0.5, probe_time + 0.5, color='r', alpha=0.15)
+        ax.scatter(r_times, r_nodes, s=25, c='k', lw=0)
 
         ax.set_xlim(-probe_time*0.05, probe_time*1.05)
         ax.set_ylabel('node')
@@ -1223,7 +1030,7 @@ def _replay_plus_stdp_example(
         axs, label, seed, network_size, v_th, rp, alpha, beta_0, beta_1,
         t_x, g_x, w_0, w_1, seqs_strong, seq_novel, drive_amp,
         duration, noise_std, trigger_interval, trigger_seq,
-        interruption_time, interruption_seq, node_order):
+        interruption_time, interruption_seq, node_order, metrics):
     """
     Run a single simulation and plot the results on a set of three axes.
     """
@@ -1256,12 +1063,14 @@ def _replay_plus_stdp_example(
     w_targ_bi = w_0 * w_base
     w_targ_for[mask_w_targ_for] = w_1
     w_targ_bi[mask_w_targ_bi] = w_1
+    w_original = w.copy()
 
     # make measurement function
     def measure_w(w_):
         dist_for = np.mean((w_ - w_targ_for) ** 2)
         dist_bi = np.mean((w_ - w_targ_bi) ** 2)
-        return [dist_for, dist_bi]
+        dist_original = np.mean((w_ - w_original) ** 2)
+        return [dist_for, dist_bi, dist_original]
 
     ntwk = network.LocalWtaWithAthAndStdp(
         th=v_th, w=w, g_x=g_x, t_x=t_x, rp=rp,
@@ -1313,14 +1122,22 @@ def _replay_plus_stdp_example(
     w_measurements = np.array(w_measurements)
     dists_w_for = w_measurements[:, 0]
     dists_w_bi = w_measurements[:, 1]
+    dists_w_orig = w_measurements[:, 2]
 
     spike_times, spike_idxs = rs.nonzero()
 
     # plot results
     axs[0].scatter(drive_times, drive_idxs, s=10, lw=0)
     axs[1].scatter(spike_times, spike_idxs, s=10, lw=0)
-    handle_0 = axs[2].plot(dists_w_for, color='r', lw=2, label='for')[0]
-    handle_1 = axs[2].plot(dists_w_bi, color='c', lw=2, label='bi')[0]
+
+    handles = []
+    if 'for' in metrics:
+        handles.append(axs[2].plot(dists_w_for, color='r', lw=2, label='to w_for')[0])
+    if 'bi' in metrics:
+        handles.append(axs[2].plot(dists_w_bi, color='c', lw=2, label='to w_bi')[0])
+    if 'init' in metrics:
+        handles.append(axs[2].plot(
+            dists_w_orig, color='k', lw=2, label='to w_init')[0])
 
     axs[0].set_ylim(-1, 1.5 * len(node_order))
     axs[1].set_ylim(-1, 1.5 * len(node_order))
@@ -1334,8 +1151,8 @@ def _replay_plus_stdp_example(
     axs[2].set_xlabel('time step')
 
     for ax in axs[:2]: ax.set_ylabel('node')
-    axs[2].set_ylabel('weight')
-    axs[2].legend(handles=[handle_0, handle_1], loc='best')
+    axs[2].set_ylabel('mean sq.\ndist.')
+    axs[2].legend(handles=handles, ncol=len(handles), loc='best')
 
     return axs
 
@@ -1353,7 +1170,7 @@ def replay_plus_stdp_periodic_stim(
     # preliminaries
     session = db.connect_and_make_session('nothing_but_reruns')
     assert len(G_XS_STATS) <= 2
-    fig = plt.figure(figsize=(15, 7), tight_layout=True)
+    fig = plt.figure(figsize=(15, 6), tight_layout=True)
 
     # run example
     gs = gridspec.GridSpec(3, 5)
@@ -1367,7 +1184,8 @@ def replay_plus_stdp_periodic_stim(
         drive_amp=DRIVE_AMP, duration=DURATION, label=LABEL,
         noise_std=NOISE_STD, trigger_interval=TRIGGER_INTERVAL,
         trigger_seq=TRIGGER_SEQ, interruption_time=INTERRUPTION_TIME,
-        interruption_seq=INTERRUPTION_SEQ, node_order=NODE_ORDER)
+        interruption_seq=INTERRUPTION_SEQ, node_order=NODE_ORDER,
+        metrics=['for', 'init'])
 
     # plot stats from saved simulation results
     ax = fig.add_subplot(gs[:-1, -2:])
@@ -1388,14 +1206,12 @@ def replay_plus_stdp_periodic_stim(
         ).order_by(_models.ReplayPlusStdpResult.beta_1).distinct().all()
 
         beta_1s = [i[0] for i in beta_1s]
-
+        print(beta_1s)
         # get colors for forward and reverse weights
-        cs_f = plot.get_n_colors(len(beta_1s), 'afmhot')
-        cs_b = plot.get_n_colors(len(beta_1s), 'winter')
+        cs_f = plot.get_n_colors(2 * len(beta_1s), 'hsv')[len(beta_1s):]
 
-        # for each beta_1 plot mean final forward and reverse weights
-        # vs. trigger interval
-        for beta_1, c_f, c_b in zip(beta_1s, cs_f, cs_b):
+        # for each beta_1 plot dist to forward weights vs. trigger interval
+        for beta_1, c_f in zip(beta_1s, cs_f):
 
             # get all results with this beta_1
             rpsrs = rpsrs_all.filter(
@@ -1407,31 +1223,20 @@ def replay_plus_stdp_periodic_stim(
             tis = [rpsr.trigger_interval for rpsr in rpsrs]
             ws = [np.array(rpsr.w_scores) for rpsr in rpsrs]
 
-            for fr_label, c in zip(['for', 'bi'], [c_f, c_b]):
-
-                if fr_label == 'for':
-                    w_scores = [w[:, 0] for w in ws]
-                elif fr_label == 'bi':
-                    w_scores = [w[:, 1] for w in ws]
-
-                means = [w_score.mean() for w_score in w_scores]
-
-                h = ax.plot(
-                    tis, means, color=c, lw=2, ls=ls,
-                    label='beta = {0:.2f} ({1})'.format(beta_1, fr_label[:3]))[0]
-
-                if ls == '-':
-                    hs.append(h)
+            w_scores = [w[:, 0] for w in ws]
+            means = [w_score.mean() for w_score in w_scores]
+            hs.append(ax.plot(
+                tis, means, color=c_f, lw=2,
+                label='beta = {0:.2f} (for)'.format(beta_1))[0])
 
     ax.set_xlabel('trigger interval')
-    ax.set_ylabel('score')
+    ax.set_ylabel('mean squared dist\nto w_for at t=400')
 
-    hs = hs[::2] + hs[1::2]
     ax_legend.legend(handles=hs, ncol=2, loc='best')
     ax_legend.get_xaxis().set_visible(False)
     ax_legend.get_yaxis().set_visible(False)
 
-    for ax in axs_ex + [ax]: plot.set_fontsize(ax, 14)
+    for ax in axs_ex + [ax, ax_legend]: plot.set_fontsize(ax, 14)
     session.close()
     return fig
 
@@ -1449,7 +1254,7 @@ def replay_plus_stdp_spontaneous(
     """
     # preliminaries
     session = db.connect_and_make_session('nothing_but_reruns')
-    fig = plt.figure(figsize=(15, 7), tight_layout=True)
+    fig = plt.figure(figsize=(15, 6), tight_layout=True)
 
     # run example
     gs = gridspec.GridSpec(3, 5)
@@ -1463,7 +1268,8 @@ def replay_plus_stdp_spontaneous(
         drive_amp=DRIVE_AMP, duration=DURATION, label=LABEL,
         noise_std=NOISE_STD, trigger_interval=TRIGGER_INTERVAL,
         trigger_seq=TRIGGER_SEQ, interruption_time=INTERRUPTION_TIME,
-        interruption_seq=INTERRUPTION_SEQ, node_order=NODE_ORDER)
+        interruption_seq=INTERRUPTION_SEQ, node_order=NODE_ORDER,
+        metrics=['for', 'bi', 'init'])
 
     # plot stats from saved simulation results
     ax = fig.add_subplot(gs[:, -2:])
@@ -1489,10 +1295,11 @@ def replay_plus_stdp_spontaneous(
 
             h = ax.plot(
                 noise_stds, means, lw=2, color=c, ls=ls,
-                label='G_X = {0:.1f} ({1})'.format(g_x, fr_label))[0]
+                label='to {}'.format(fr_label))[0]
             hs.append(h)
 
     ax.set_xlabel('noise std')
+    ax.set_ylabel('mean squared\ndist at t=400')
     ax.legend(handles=hs)
 
     for ax in axs_ex + [ax]: plot.set_fontsize(ax, 14)
@@ -1512,7 +1319,7 @@ def replay_plus_stdp_interrupted(NETWORK_SIZE, V_TH, RP,
     """
     # preliminaries
     session = db.connect_and_make_session('nothing_but_reruns')
-    fig = plt.figure(figsize=(15, 7), tight_layout=True)
+    fig = plt.figure(figsize=(15, 6), tight_layout=True)
 
     # run example
     gs = gridspec.GridSpec(3, 5)
@@ -1526,7 +1333,8 @@ def replay_plus_stdp_interrupted(NETWORK_SIZE, V_TH, RP,
         drive_amp=DRIVE_AMP, duration=DURATION, label=LABEL,
         noise_std=NOISE_STD, trigger_interval=TRIGGER_INTERVAL,
         trigger_seq=TRIGGER_SEQ, interruption_time=INTERRUPTION_TIME,
-        interruption_seq=INTERRUPTION_SEQ, node_order=NODE_ORDER)
+        interruption_seq=INTERRUPTION_SEQ, node_order=NODE_ORDER,
+        metrics=['for', 'init'])
 
     # plot stats from saved simulation results
     ax = fig.add_subplot(gs[:-1, -2:])
@@ -1545,7 +1353,7 @@ def replay_plus_stdp_interrupted(NETWORK_SIZE, V_TH, RP,
         _models.ReplayPlusStdpResult.beta_1).distinct().all()
     beta_1s = [i[0] for i in beta_1s]
 
-    colors = plot.get_n_colors(len(beta_1s), 'afmhot')
+    colors = plot.get_n_colors(2*len(beta_1s), 'hsv')[len(beta_1s):]
 
     # loop over beta_1 and plot mean w vs. alpha for each
     for beta_1, c in zip(beta_1s, colors):
@@ -1564,6 +1372,7 @@ def replay_plus_stdp_interrupted(NETWORK_SIZE, V_TH, RP,
         hs.append(h)
 
     ax.set_xlabel('alpha')
+    ax.set_ylabel('mean squared dist\nto w_for at t=400')
 
     ax_legend.legend(handles=hs, ncol=2, loc='best')
     ax_legend.get_xaxis().set_visible(False)
