@@ -50,3 +50,39 @@ def zip_cproduct(z, c, order, kwargs):
         ]
 
     return temp_2
+
+
+def get_stationary_distribution(trs):
+    """
+    Return stationary distribution given a transition matrix.
+    :param trs:
+    :return:
+    """
+
+    evs, evecs = np.linalg.eig(trs)
+
+    idx = np.argmin(np.abs(np.abs(evs) - 1))
+    if evs[idx] < 1: evecs *= -1
+
+    p_0 = np.real(evecs[:, idx])
+    p_0 /= p_0.sum()
+
+    return p_0
+
+
+def sample_markov_chain(p_0, trs, l):
+    """
+    Sample a sequence from a Markov chain.
+    :param p_0:
+    :param trs:
+    :param l:
+    :return:
+    """
+    nodes = np.arange(len(p_0))
+    seq = [np.random.choice(nodes, p=p_0)]
+
+    for _ in range(l-1):
+        seq.append(np.random.choice(nodes, p=trs[:, seq[-1]]))
+
+    return seq
+
