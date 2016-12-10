@@ -393,7 +393,7 @@ def capacity_and_connectivity_analysis(
             _models.ConnectivityAnalysisResult.q.between(.99 * q, 1.01*q))
 
         ls = sorted(np.unique([car.l for car in cars.all()]))
-        colors = get_n_colors(len(ls) + 1, 'hsv')[:-1]
+        colors = plot.get_n_colors(len(ls) + 1, 'hsv')[:-1]
 
         for l, color in zip(ls, colors):
 
@@ -403,10 +403,10 @@ def capacity_and_connectivity_analysis(
             mean = np.mean(replay_probs, axis=0)
             sem = stats.sem(replay_probs, axis=0)
             handles.append(axs[0].plot(
-                match_percentages, mean, color=color, lw=2, ls=style,
+                car.match_percents, mean, color=color, lw=2, ls=style,
                 label='L = {}'.format(l), zorder=1)[0])
             axs[0].fill_between(
-                match_percentages, mean-sem, mean+sem,
+                car.match_percents, mean-sem, mean+sem,
                 color=color, zorder=0, alpha=0.2)
 
             axs[0].set_xticks([0, .2, .4, .6, .8, 1])
@@ -419,11 +419,11 @@ def capacity_and_connectivity_analysis(
             axs[0].legend(handles=handles, loc='best')
 
     # plot replay probability and memory content
-    colors = get_n_colors(len(ls) + 1, 'hsv')[:-1]
+    colors = plot.get_n_colors(len(LS) + 1, 'hsv')[:-1]
     for l, color in zip(LS, colors):
 
         guaranteed_replay_probability = \
-            (1 - QS) ** ((l - 1) * (l - 2))
+            (1 - QS_DENSITY) ** ((l - 1) * (l - 2))
 
         axs[1].semilogx(QS_DENSITY, guaranteed_replay_probability, color=color, lw=2)
 
@@ -444,7 +444,7 @@ def capacity_and_connectivity_analysis(
     axs[2].set_ylabel('memory content')
     axs[2].set_yticks(axs[2].get_yticks()[::4])
 
-    for ax in axs: set_fontsize(ax, 14)
+    for ax in axs: plot.set_fontsize(ax, 14)
 
     return fig
 
@@ -1229,7 +1229,8 @@ def _replay_plus_stdp_example(
     """
     # make base weight matrix
     w_base, nodes = connectivity.hexagonal_lattice(network_size)
-    nodes_reordered = reorder_idxs(nodes, node_order)
+    nodes, idxs = reorder_idxs(nodes, node_order)
+    w_base = w_base[idxs, :][:, idxs]
 
     # make mask for strong connections
     mask_w_strong = np.zeros(w_base.shape, dtype=bool)
@@ -1316,8 +1317,8 @@ def _replay_plus_stdp_example(
     spike_times, spike_idxs = rs.nonzero()
 
     # plot results
-    axs[0].scatter(drive_times, nodes_reordered[drive_idxs], s=10, lw=0)
-    axs[1].scatter(spike_times, nodes_reordered[spike_idxs], s=10, lw=0)
+    axs[0].scatter(drive_times, drive_idxs, s=10, lw=0)
+    axs[1].scatter(spike_times, spike_idxs, s=10, lw=0)
     handle_0 = axs[2].plot(dists_w_for, color='r', lw=2, label='for')[0]
     handle_1 = axs[2].plot(dists_w_bi, color='c', lw=2, label='bi')[0]
 
