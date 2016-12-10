@@ -8,6 +8,30 @@ from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 
+class ConnectivityAnalysisResult(Base):
+
+    __tablename__ = 'connectivity_analysis_result'
+
+    id = Column(Integer, primary_key=True)
+
+    group = Column(String)
+
+    n = Column(Integer)
+    l = Column(Integer)
+    q = Column(Float)
+    match_percents = Column(ARRAY(Float))
+
+    n_trials = Column(Integer)
+    n_stim_seqs = Column(Integer)
+
+    v_th = Column(Float)
+    g_w = Column(Float)
+    g_x = Column(Float)
+    rp = Column(Float)
+
+    replay_probs = Column(ARRAY(Float))
+
+
 class SpontaneousReplayExtensionResult(Base):
 
     __tablename__ = 'spontaneous_replay_extension_result'
