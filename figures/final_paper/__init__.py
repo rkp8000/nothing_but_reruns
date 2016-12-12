@@ -481,12 +481,13 @@ def multiple_and_reverse_replay(
         TRIGGER_INTERVAL,
         NODE_ORDER_MULTIPLE,
         # reverse replay simplified demo
+        T_X_REVERSE, OFFSET_REVERSE,
         SEQ_REVS, NODE_ORDER_REVERSE):
     """
     Show figures displaying replay of multiple sequences, priming, and
     reverse replay.
     """
-    fig = plt.figure(figsize=(15, 10), tight_layout=True)
+    fig = plt.figure(figsize=(11, 10), tight_layout=True)
     gs = gridspec.GridSpec(4, 4)
     np.random.seed(SEED)
 
@@ -552,12 +553,12 @@ def multiple_and_reverse_replay(
     nodes, idxs = reorder_idxs(nodes, NODE_ORDER_REVERSE)
     w = w[idxs, :][:, idxs]
     ntwk = network.LocalWtaWithAthAndStdp(
-        th=V_TH, w=G_W*w, g_x=G_X, t_x=T_X, rp=RP,
+        th=V_TH, w=G_W*w, g_x=G_X, t_x=T_X_REVERSE, rp=RP,
         stdp_params=None, wta_dist=2, wta_factor=1)
     r_0 = np.zeros((len(nodes),))
     xc_0 = np.zeros((len(nodes),))
 
-    len_single_run = 2 * T_X
+    len_single_run = OFFSET_REVERSE
 
     # build stimulus
     assert len(SEQ_REVS) == 2
